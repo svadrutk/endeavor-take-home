@@ -1,8 +1,11 @@
-from fastapi import FastAPI, HTTPException, Header, Query, Depends
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import IntegrityError
-from typing import Optional, Any
-from datetime import datetime
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Header, Query, Depends, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.database import engine, SessionLocal, Base
 from app.models import Pokemon, Trainer, Ranger, Sighting
@@ -21,13 +24,49 @@ from app.schemas import (
     PaginatedPokemonResponse,
     PaginatedPokemonSearchResult,
 )
+from app.services import TrainerService, RangerService, PokemonService, SightingService
+from app.logging_config import configure_logging
+from app.middleware import WideEventMiddleware
+
+
+configure_logging(log_level="INFO")
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Endeavor PokéTracker", version="0.0.1")
 
+app.add_middleware(WideEventMiddleware)
 
-# ---------- helpers ----------
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["error"] = {
+            "type": "RateLimitExceeded",
+            "message": "Rate limit exceeded",
+        }
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please slow down."},
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["error"] = {
+            "type": "ValueError",
+            "message": str(exc),
+        }
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
 
 def get_db():
     db = SessionLocal()
@@ -37,125 +76,217 @@ def get_db():
         db.close()
 
 
-REGION_TO_GENERATION = {
-    "kanto": 1,
-    "johto": 2,
-    "hoenn": 3,
-    "sinnoh": 4,
-}
+@app.get("/")
+@limiter.limit("100/minute")
+async def root(request: Request):
+    return {"message": "Welcome to PokéTracker API"}
 
 
-# ---------- Trainers ----------
-
-@app.post("/trainers", response_model=TrainerResponse)
-def create_trainer(trainer: TrainerCreate, db: Session = Depends(get_db)):
-    new_trainer = Trainer(name=trainer.name, email=trainer.email)
-    db.add(new_trainer)
+@app.post("/trainers", response_model=TrainerResponse, status_code=200)
+@limiter.limit("10/minute")
+def create_trainer(
+    request: Request,
+    trainer: TrainerCreate,
+    db: Session = Depends(get_db),
+):
+    service = TrainerService(db)
     try:
-        db.commit()
-        db.refresh(new_trainer)
+        new_trainer = service.create_trainer(trainer)
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["trainer"] = {
+                "id": new_trainer.id,
+                "name": new_trainer.name,
+            }
         return new_trainer
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Trainer with this name or email already exists")
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "ConflictError",
+                "message": str(e),
+            }
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @app.get("/trainers/{trainer_id}", response_model=TrainerResponse)
-def get_trainer(trainer_id: str, db: Session = Depends(get_db)):
-    trainer = db.query(Trainer).filter(Trainer.id == trainer_id).first()
+@limiter.limit("100/minute")
+def get_trainer(
+    request: Request,
+    trainer_id: str,
+    db: Session = Depends(get_db),
+):
+    service = TrainerService(db)
+    trainer = service.get_trainer(trainer_id)
     if not trainer:
-        raise HTTPException(status_code=404, detail="Trainer not found")
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "NotFoundError",
+                "message": f"Trainer with ID '{trainer_id}' not found",
+            }
+        raise HTTPException(
+            status_code=404,
+            detail=f"Trainer with ID '{trainer_id}' not found"
+        )
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["trainer"] = {"id": trainer.id, "name": trainer.name}
     return trainer
 
 
-# ---------- Rangers ----------
-
-@app.post("/rangers", response_model=RangerResponse)
-def create_ranger(ranger: RangerCreate, db: Session = Depends(get_db)):
-    new_ranger = Ranger(
-        name=ranger.name,
-        email=ranger.email,
-        specialization=ranger.specialization,
-    )
-    db.add(new_ranger)
+@app.post("/rangers", response_model=RangerResponse, status_code=200)
+@limiter.limit("10/minute")
+def create_ranger(
+    request: Request,
+    ranger: RangerCreate,
+    db: Session = Depends(get_db),
+):
+    service = RangerService(db)
     try:
-        db.commit()
-        db.refresh(new_ranger)
+        new_ranger = service.create_ranger(ranger)
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["ranger"] = {
+                "id": new_ranger.id,
+                "name": new_ranger.name,
+            }
         return new_ranger
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Ranger with this name or email already exists")
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "ConflictError",
+                "message": str(e),
+            }
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @app.get("/rangers/{ranger_id}", response_model=RangerResponse)
-def get_ranger(ranger_id: str, db: Session = Depends(get_db)):
-    ranger = db.query(Ranger).filter(Ranger.id == ranger_id).first()
+@limiter.limit("100/minute")
+def get_ranger(
+    request: Request,
+    ranger_id: str,
+    db: Session = Depends(get_db),
+):
+    service = RangerService(db)
+    ranger = service.get_ranger(ranger_id)
     if not ranger:
-        raise HTTPException(status_code=404, detail="Ranger not found")
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "NotFoundError",
+                "message": f"Ranger with ID '{ranger_id}' not found",
+            }
+        raise HTTPException(
+            status_code=404,
+            detail=f"Ranger with ID '{ranger_id}' not found"
+        )
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["ranger"] = {"id": ranger.id, "name": ranger.name}
     return ranger
 
 
 @app.get("/rangers/{ranger_id}/sightings", response_model=PaginatedSightingResponse)
+@limiter.limit("100/minute")
 def get_ranger_sightings(
+    request: Request,
     ranger_id: str,
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    ranger = db.query(Ranger).filter(Ranger.id == ranger_id).first()
-    if not ranger:
-        raise HTTPException(status_code=404, detail="Ranger not found")
-    
-    total = db.query(Sighting).filter(Sighting.ranger_id == ranger_id).count()
-    
-    sightings = (
-        db.query(Sighting)
-        .options(joinedload(Sighting.pokemon))
-        .filter(Sighting.ranger_id == ranger_id)
-        .order_by(Sighting.date.desc())
-        .limit(limit)
-        .offset(offset)
-        .all()
-    )
-    
-    result = []
-    for s in sightings:
-        resp = SightingResponse.model_validate(s)
-        resp.pokemon_name = s.pokemon.name if s.pokemon else None
-        resp.ranger_name = ranger.name
-        result.append(resp)
-    
-    return PaginatedSightingResponse(
-        results=result,
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    service = SightingService(db)
+    try:
+        sightings_data, total = service.get_ranger_sightings(
+            ranger_id, skip=offset, limit=limit
+        )
+        
+        result = []
+        for sighting, pokemon, ranger in sightings_data:
+            result.append(
+                SightingResponse(
+                    id=sighting.id,
+                    pokemon_id=sighting.pokemon_id,
+                    ranger_id=sighting.ranger_id,
+                    region=sighting.region,
+                    route=sighting.route,
+                    date=sighting.date,
+                    weather=sighting.weather,
+                    time_of_day=sighting.time_of_day,
+                    height=sighting.height,
+                    weight=sighting.weight,
+                    is_shiny=sighting.is_shiny,
+                    notes=sighting.notes,
+                    is_confirmed=sighting.is_confirmed,
+                    pokemon_name=pokemon.name if pokemon else None,
+                    ranger_name=ranger.name if ranger else None,
+                )
+            )
+        
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["ranger_id"] = ranger_id
+            request.state.wide_event["sightings_count"] = len(result)
+            request.state.wide_event["total_sightings"] = total
+        
+        return PaginatedSightingResponse(
+            results=result,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "NotFoundError",
+                "message": str(e),
+            }
+        raise HTTPException(status_code=404, detail=str(e))
 
-
-# ---------- User Lookup ----------
 
 @app.get("/users/lookup", response_model=UserLookupResponse)
-def lookup_user(name: str = Query(...), db: Session = Depends(get_db)):
-    trainer = db.query(Trainer).filter(Trainer.name == name).first()
-    if trainer:
-        return UserLookupResponse(id=trainer.id, name=trainer.name, role="trainer")
-    ranger = db.query(Ranger).filter(Ranger.name == name).first()
-    if ranger:
-        return UserLookupResponse(id=ranger.id, name=ranger.name, role="ranger")
-    raise HTTPException(status_code=404, detail="User not found")
+@limiter.limit("100/minute")
+def lookup_user(
+    request: Request,
+    name: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    trainer_service = TrainerService(db)
+    result = trainer_service.lookup_user_by_name(name)
+    if result:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["user"] = {
+                "id": result["id"],
+                "role": result["role"],
+            }
+        return result
+    
+    ranger_service = RangerService(db)
+    result = ranger_service.lookup_user_by_name(name)
+    if result:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["user"] = {
+                "id": result["id"],
+                "role": result["role"],
+            }
+        return result
+    
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["error"] = {
+            "type": "NotFoundError",
+            "message": f"User with name '{name}' not found",
+        }
+    raise HTTPException(status_code=404, detail=f"User with name '{name}' not found")
 
-
-# ---------- Pokédex ----------
 
 @app.get("/pokedex", response_model=PaginatedPokemonResponse)
+@limiter.limit("100/minute")
 def list_pokemon(
+    request: Request,
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    total = db.query(Pokemon).count()
-    pokemon_list = db.query(Pokemon).order_by(Pokemon.id).limit(limit).offset(offset).all()
+    service = PokemonService(db)
+    pokemon_list, total = service.list_pokemon(skip=offset, limit=limit)
+    
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["pokemon_count"] = len(pokemon_list)
+        request.state.wide_event["total_pokemon"] = total
+    
     return PaginatedPokemonResponse(
         results=[PokemonResponse.model_validate(p) for p in pokemon_list],
         total=total,
@@ -165,23 +296,23 @@ def list_pokemon(
 
 
 @app.get("/pokedex/search", response_model=PaginatedPokemonSearchResult)
+@limiter.limit("100/minute")
 def search_pokemon(
+    request: Request,
     name: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    total = db.query(Pokemon).filter(Pokemon.name.ilike(f"%{name}%")).count()
-    results = (
-        db.query(Pokemon)
-        .filter(Pokemon.name.ilike(f"%{name}%"))
-        .order_by(Pokemon.id)
-        .limit(limit)
-        .offset(offset)
-        .all()
-    )
+    service = PokemonService(db)
+    pokemon_list, total = service.search_pokemon(name, skip=offset, limit=limit)
+    
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["search_term"] = name
+        request.state.wide_event["results_count"] = len(pokemon_list)
+    
     return PaginatedPokemonSearchResult(
-        results=[PokemonSearchResult.model_validate(p) for p in results],
+        results=[PokemonSearchResult.model_validate(p) for p in pokemon_list],
         total=total,
         limit=limit,
         offset=offset,
@@ -189,54 +320,160 @@ def search_pokemon(
 
 
 @app.get("/pokedex/{pokemon_id}", response_model=PokemonResponse)
-def get_pokemon(pokemon_id: int, db: Session = Depends(get_db)):
-    pokemon = db.query(Pokemon).filter(Pokemon.id == pokemon_id).first()
+@limiter.limit("100/minute")
+def get_pokemon(
+    request: Request,
+    pokemon_id: int,
+    db: Session = Depends(get_db),
+):
+    service = PokemonService(db)
+    pokemon = service.get_pokemon(pokemon_id)
     if not pokemon:
-        raise HTTPException(status_code=404, detail="Pokémon not found")
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "NotFoundError",
+                "message": f"Pokemon with ID '{pokemon_id}' not found",
+            }
+        raise HTTPException(
+            status_code=404,
+            detail=f"Pokemon with ID '{pokemon_id}' not found"
+        )
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["pokemon"] = {"id": pokemon.id, "name": pokemon.name}
     return PokemonResponse.model_validate(pokemon)
 
 
-@app.get("/pokedex/region/{region_name_or_generation}", response_model=list[PokemonResponse])
-def get_pokemon_by_region(region_name_or_generation: str, db: Session = Depends(get_db)):
-    region_lower = region_name_or_generation.lower()
-    generation = REGION_TO_GENERATION.get(region_lower)
-    if generation is None:
-        try:
-            generation = int(region_name_or_generation)
-        except ValueError:
-            raise HTTPException(status_code=404, detail="Invalid region name or generation number")
-    
-    if generation < 1 or generation > 4:
-        raise HTTPException(status_code=404, detail="Generation must be between 1 and 4")
-    
-    pokemon_list = db.query(Pokemon).filter(Pokemon.generation == generation).all()
-    return [PokemonResponse.model_validate(p) for p in pokemon_list]
+@app.get("/pokedex/region/{region_name_or_generation}")
+@limiter.limit("100/minute")
+def get_pokemon_by_region(
+    request: Request,
+    region_name_or_generation: str,
+    db: Session = Depends(get_db),
+    limit: Optional[int] = Query(None, ge=1, le=200),
+    offset: Optional[int] = Query(None, ge=0),
+):
+    service = PokemonService(db)
+    try:
+        pokemon_list, total = service.get_pokemon_by_region(region_name_or_generation)
+        
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["region"] = region_name_or_generation
+            request.state.wide_event["pokemon_count"] = len(pokemon_list)
+        
+        if limit is not None and offset is not None:
+            paginated_list = pokemon_list[offset:offset+limit]
+            return PaginatedPokemonResponse(
+                results=[PokemonResponse.model_validate(p) for p in paginated_list],
+                total=total,
+                limit=limit,
+                offset=offset,
+            )
+        else:
+            return [PokemonResponse.model_validate(p) for p in pokemon_list]
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "ValidationError",
+                "message": str(e),
+            }
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-# ---------- Sightings ----------
-
-@app.post("/sightings", response_model=SightingResponse)
+@app.post("/sightings", response_model=SightingResponse, status_code=200)
+@limiter.limit("10/minute")
 def create_sighting(
+    request: Request,
     sighting: SightingCreate,
     db: Session = Depends(get_db),
-    x_user_id: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
 ):
     if not x_user_id:
-        raise HTTPException(status_code=401, detail="X-User-ID header is required")
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "AuthenticationError",
+                "message": "Missing X-User-ID header",
+            }
+        raise HTTPException(
+            status_code=401,
+            detail="X-User-ID header is required. Please provide your user ID to create a sighting."
+        )
+    
+    service = SightingService(db)
+    try:
+        new_sighting, pokemon, ranger = service.create_sighting(sighting, x_user_id)
+        
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["sighting"] = {
+                "id": new_sighting.id,
+                "pokemon_id": new_sighting.pokemon_id,
+                "pokemon_name": pokemon.name,
+                "ranger_id": new_sighting.ranger_id,
+                "ranger_name": ranger.name,
+                "region": new_sighting.region,
+            }
+        
+        return SightingResponse(
+            id=new_sighting.id,
+            pokemon_id=new_sighting.pokemon_id,
+            ranger_id=new_sighting.ranger_id,
+            region=new_sighting.region,
+            route=new_sighting.route,
+            date=new_sighting.date,
+            weather=new_sighting.weather,
+            time_of_day=new_sighting.time_of_day,
+            height=new_sighting.height,
+            weight=new_sighting.weight,
+            is_shiny=new_sighting.is_shiny,
+            notes=new_sighting.notes,
+            is_confirmed=new_sighting.is_confirmed,
+            pokemon_name=pokemon.name,
+            ranger_name=ranger.name,
+        )
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "ValidationError" if "Ranger" not in str(e) else "AuthorizationError",
+                "message": str(e),
+            }
+        if "Ranger" in str(e):
+            raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
 
-    # Check that user is a ranger
-    ranger = db.query(Ranger).filter(Ranger.id == x_user_id).first()
-    if not ranger:
-        raise HTTPException(status_code=403, detail="Only rangers can log sightings")
 
-    # Check pokemon exists
-    pokemon = db.query(Pokemon).filter(Pokemon.id == sighting.pokemon_id).first()
-    if not pokemon:
-        raise HTTPException(status_code=404, detail="Pokémon not found")
-
-    new_sighting = Sighting(
+@app.get("/sightings/{sighting_id}", response_model=SightingResponse)
+@limiter.limit("100/minute")
+def get_sighting(
+    request: Request,
+    sighting_id: str,
+    db: Session = Depends(get_db),
+):
+    service = SightingService(db)
+    result = service.get_sighting(sighting_id)
+    
+    if not result:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "NotFoundError",
+                "message": f"Sighting with ID '{sighting_id}' not found",
+            }
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sighting with ID '{sighting_id}' not found"
+        )
+    
+    sighting, pokemon, ranger = result
+    
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["sighting"] = {
+            "id": sighting.id,
+            "pokemon_id": sighting.pokemon_id,
+            "region": sighting.region,
+        }
+    
+    return SightingResponse(
+        id=sighting.id,
         pokemon_id=sighting.pokemon_id,
-        ranger_id=x_user_id,
+        ranger_id=sighting.ranger_id,
         region=sighting.region,
         route=sighting.route,
         date=sighting.date,
@@ -246,50 +483,47 @@ def create_sighting(
         weight=sighting.weight,
         is_shiny=sighting.is_shiny,
         notes=sighting.notes,
-        latitude=sighting.latitude,
-        longitude=sighting.longitude,
+        is_confirmed=sighting.is_confirmed,
+        pokemon_name=pokemon.name if pokemon else None,
+        ranger_name=ranger.name if ranger else None,
     )
-    db.add(new_sighting)
-    db.commit()
-    db.refresh(new_sighting)
-
-    resp = SightingResponse.model_validate(new_sighting)
-    resp.pokemon_name = pokemon.name
-    resp.ranger_name = ranger.name
-    return resp
-
-
-@app.get("/sightings/{sighting_id}", response_model=SightingResponse)
-def get_sighting(sighting_id: str, db: Session = Depends(get_db)):
-    sighting = db.query(Sighting).filter(Sighting.id == sighting_id).first()
-    if not sighting:
-        raise HTTPException(status_code=404, detail="Sighting not found")
-
-    pokemon = db.query(Pokemon).filter(Pokemon.id == sighting.pokemon_id).first()
-    ranger = db.query(Ranger).filter(Ranger.id == sighting.ranger_id).first()
-
-    resp = SightingResponse.model_validate(sighting)
-    resp.pokemon_name = pokemon.name if pokemon else None
-    resp.ranger_name = ranger.name if ranger else None
-    return resp
 
 
 @app.delete("/sightings/{sighting_id}", response_model=MessageResponse)
+@limiter.limit("10/minute")
 def delete_sighting(
+    request: Request,
     sighting_id: str,
     db: Session = Depends(get_db),
-    x_user_id: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
 ):
     if not x_user_id:
-        raise HTTPException(status_code=401, detail="X-User-ID header is required")
-
-    sighting = db.query(Sighting).filter(Sighting.id == sighting_id).first()
-    if not sighting:
-        raise HTTPException(status_code=404, detail="Sighting not found")
-
-    if sighting.ranger_id != x_user_id:
-        raise HTTPException(status_code=403, detail="You can only delete your own sightings")
-
-    db.delete(sighting)
-    db.commit()
-    return MessageResponse(detail="Sighting deleted")
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "AuthenticationError",
+                "message": "Missing X-User-ID header",
+            }
+        raise HTTPException(
+            status_code=401,
+            detail="X-User-ID header is required. Please provide your user ID to delete a sighting."
+        )
+    
+    service = SightingService(db)
+    try:
+        success = service.delete_sighting(sighting_id, x_user_id)
+        if success:
+            if hasattr(request.state, "wide_event"):
+                request.state.wide_event["sighting"] = {
+                    "id": sighting_id,
+                    "deleted": True,
+                }
+            return MessageResponse(detail="Sighting deleted successfully")
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "AuthorizationError" if "Permission denied" in str(e) else "NotFoundError",
+                "message": str(e),
+            }
+        if "Permission denied" in str(e):
+            raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
