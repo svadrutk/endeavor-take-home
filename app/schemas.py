@@ -248,3 +248,37 @@ class RegionalAnalysis(BaseModel):
     total_sightings: int
     rarity_breakdown: dict[str, RarityTierBreakdown]
     anomalies: list[AnomalySpecies]
+
+
+LeaderboardSortBy = Literal["total_sightings", "confirmed_sightings", "unique_species"]
+
+
+class RarestPokemonResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pokemon_id: int = Field(..., description="National Pokédex ID")
+    pokemon_name: str = Field(..., description="Species name")
+    rarity_score: float = Field(..., description="Calculated rarity score")
+    is_shiny: bool = Field(..., description="Whether this is a shiny variant")
+    date: datetime = Field(..., description="Date of the sighting")
+
+
+class LeaderboardEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    rank: int = Field(..., description="Position in leaderboard (1 = top)")
+    ranger_id: str = Field(..., description="UUID of the ranger")
+    ranger_name: str = Field(..., description="Display name of the ranger")
+    total_sightings: int = Field(..., description="Total number of sightings")
+    confirmed_sightings: int = Field(..., description="Number of confirmed sightings")
+    unique_species: int = Field(..., description="Number of unique Pokemon species observed")
+    rarest_pokemon: RarestPokemonResponse | None = Field(
+        None, description="Rarest Pokemon discovered"
+    )
+
+
+class PaginatedLeaderboardResponse(BaseModel):
+    results: list[LeaderboardEntryResponse]
+    total: int = Field(..., description="Total number of rangers matching filters")
+    limit: int = Field(..., description="Maximum number of results per page")
+    offset: int = Field(..., description="Number of results skipped")
