@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_ranger_service, get_trainer_service
 from app.schemas import UserLookupResponse
 from app.services import RangerService, TrainerService
 
@@ -12,9 +11,9 @@ router = APIRouter(tags=["users"])
 def lookup_user(
     request: Request,
     name: str = Query(...),
-    db: Session = Depends(get_db),
+    trainer_service: TrainerService = Depends(get_trainer_service),
+    ranger_service: RangerService = Depends(get_ranger_service),
 ):
-    trainer_service = TrainerService(db)
     result = trainer_service.lookup_user_by_name(name)
     if result:
         if hasattr(request.state, "wide_event"):
@@ -24,7 +23,6 @@ def lookup_user(
             }
         return result
 
-    ranger_service = RangerService(db)
     result = ranger_service.lookup_user_by_name(name)
     if result:
         if hasattr(request.state, "wide_event"):

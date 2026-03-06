@@ -1,9 +1,8 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_sighting_service
 from app.schemas import MessageResponse, PaginatedSightingResponse, SightingCreate, SightingResponse
 from app.services import SightingService
 
@@ -13,7 +12,7 @@ router = APIRouter(prefix="/sightings", tags=["sightings"])
 @router.get("/", response_model=PaginatedSightingResponse)
 def list_sightings(
     request: Request,
-    db: Session = Depends(get_db),
+    service: SightingService = Depends(get_sighting_service),
     pokemon_id: int | None = Query(None, description="Filter by Pokemon species ID"),
     region: str | None = Query(None, description="Filter by region name"),
     weather: str | None = Query(None, description="Filter by weather condition"),
@@ -42,28 +41,26 @@ def list_sightings(
 
     Returns paginated results with total count.
     """
-    if date_from and date_to and date_from > date_to:
+    try:
+        sightings_data, total = service.filter_sightings(
+            pokemon_id=pokemon_id,
+            region=region,
+            weather=weather,
+            time_of_day=time_of_day,
+            ranger_id=ranger_id,
+            date_from=date_from,
+            date_to=date_to,
+            is_confirmed=is_confirmed,
+            skip=offset,
+            limit=limit,
+        )
+    except ValueError as e:
         if hasattr(request.state, "wide_event"):
             request.state.wide_event["error"] = {
                 "type": "ValidationError",
-                "message": "date_from must be before or equal to date_to",
+                "message": str(e),
             }
-        raise HTTPException(status_code=400, detail="date_from must be before or equal to date_to")
-
-    service = SightingService(db)
-
-    sightings_data, total = service.filter_sightings(
-        pokemon_id=pokemon_id,
-        region=region,
-        weather=weather,
-        time_of_day=time_of_day,
-        ranger_id=ranger_id,
-        date_from=date_from,
-        date_to=date_to,
-        is_confirmed=is_confirmed,
-        skip=offset,
-        limit=limit,
-    )
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     results = []
     for sighting, pokemon, ranger in sightings_data:
@@ -113,7 +110,7 @@ def list_sightings(
 def create_sighting(
     request: Request,
     sighting: SightingCreate,
-    db: Session = Depends(get_db),
+    service: SightingService = Depends(get_sighting_service),
     x_user_id: str | None = Header(None, alias="X-User-ID"),
 ):
     if not x_user_id:
@@ -127,7 +124,6 @@ def create_sighting(
             detail="X-User-ID header is required. Please provide your user ID to create a sighting.",
         )
 
-    service = SightingService(db)
     try:
         new_sighting, pokemon, ranger = service.create_sighting(sighting, x_user_id)
 
@@ -173,9 +169,8 @@ def create_sighting(
 def get_sighting(
     request: Request,
     sighting_id: str,
-    db: Session = Depends(get_db),
+    service: SightingService = Depends(get_sighting_service),
 ):
-    service = SightingService(db)
     result = service.get_sighting(sighting_id)
 
     if not result:
@@ -218,7 +213,7 @@ def get_sighting(
 def delete_sighting(
     request: Request,
     sighting_id: str,
-    db: Session = Depends(get_db),
+    service: SightingService = Depends(get_sighting_service),
     x_user_id: str | None = Header(None, alias="X-User-ID"),
 ):
     if not x_user_id:
@@ -232,7 +227,6 @@ def delete_sighting(
             detail="X-User-ID header is required. Please provide your user ID to delete a sighting.",
         )
 
-    service = SightingService(db)
     try:
         success = service.delete_sighting(sighting_id, x_user_id)
         if success:

@@ -1,5 +1,3 @@
-from sqlalchemy.orm import Session
-
 from app.models import Pokemon
 from app.repositories.pokemon_repository import PokemonRepository
 
@@ -15,23 +13,22 @@ VALID_GENERATIONS = {1, 2, 3, 4}
 
 
 class PokemonService:
-    def __init__(self, db: Session):
-        self.db = db
-        self.repository = PokemonRepository(db)
+    def __init__(self, pokemon_repo: PokemonRepository):
+        self.pokemon_repo = pokemon_repo
 
     def get_pokemon(self, pokemon_id: int) -> Pokemon | None:
-        return self.repository.get(pokemon_id)
+        return self.pokemon_repo.get(pokemon_id)
 
     def list_pokemon(self, skip: int = 0, limit: int = 100) -> tuple[list[Pokemon], int]:
-        total = self.repository.count()
-        pokemon_list = self.repository.get_multi(skip=skip, limit=limit, order_by=Pokemon.id)
+        total = self.pokemon_repo.count()
+        pokemon_list = self.pokemon_repo.get_multi(skip=skip, limit=limit, order_by=Pokemon.id)
         return pokemon_list, total
 
     def search_pokemon(
         self, name: str, skip: int = 0, limit: int = 100
     ) -> tuple[list[Pokemon], int]:
-        total = self.repository.count_by_name_search(name)
-        pokemon_list = self.repository.search_by_name(name, skip=skip, limit=limit)
+        total = self.pokemon_repo.count_by_name_search(name)
+        pokemon_list = self.pokemon_repo.search_by_name(name, skip=skip, limit=limit)
         return pokemon_list, total
 
     def get_pokemon_by_region(self, region_or_generation: str) -> tuple[list[Pokemon], int]:
@@ -56,5 +53,5 @@ class PokemonService:
                     f"Valid generations: {', '.join(map(str, sorted(VALID_GENERATIONS)))}"
                 ) from None
 
-        pokemon_list = self.repository.get_by_generation(generation)
+        pokemon_list = self.pokemon_repo.get_by_generation(generation)
         return pokemon_list, len(pokemon_list)
