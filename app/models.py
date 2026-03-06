@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -32,7 +32,7 @@ class Trainer(Base):
         primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
     )
     created_at: Mapped[datetime] = mapped_column(
-        init=False, default_factory=datetime.utcnow, insert_default=datetime.utcnow,
+        init=False, default_factory=lambda: datetime.now(timezone.utc), insert_default=lambda: datetime.now(timezone.utc),
     )
 
 
@@ -46,13 +46,22 @@ class Ranger(Base):
         primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
     )
     created_at: Mapped[datetime] = mapped_column(
-        init=False, default_factory=datetime.utcnow, insert_default=datetime.utcnow,
+        init=False, default_factory=lambda: datetime.now(timezone.utc), insert_default=lambda: datetime.now(timezone.utc),
     )
 
 
 class Sighting(Base):
     __tablename__ = "sightings"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = (
+        Index('idx_sightings_region', 'region'),
+        Index('idx_sightings_ranger_id', 'ranger_id'),
+        Index('idx_sightings_date', 'date'),
+        Index('idx_sightings_pokemon_id', 'pokemon_id'),
+        Index('idx_sightings_ranger_date', 'ranger_id', 'date'),
+        Index('idx_sightings_region_date', 'region', 'date'),
+        Index('idx_sightings_is_confirmed', 'is_confirmed'),
+        {"extend_existing": True}
+    )
 
     pokemon_id: Mapped[int] = mapped_column(ForeignKey("pokemon.id"))
     ranger_id: Mapped[str] = mapped_column(ForeignKey("rangers.id"))
