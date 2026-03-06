@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_pokemon_service
 from app.schemas import (
     PaginatedPokemonResponse,
     PaginatedPokemonSearchResult,
@@ -16,11 +15,10 @@ router = APIRouter(prefix="/pokedex", tags=["pokemon"])
 @router.get("/", response_model=PaginatedPokemonResponse)
 def list_pokemon(
     request: Request,
-    db: Session = Depends(get_db),
+    service: PokemonService = Depends(get_pokemon_service),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    service = PokemonService(db)
     pokemon_list, total = service.list_pokemon(skip=offset, limit=limit)
 
     if hasattr(request.state, "wide_event"):
@@ -39,11 +37,10 @@ def list_pokemon(
 def search_pokemon(
     request: Request,
     name: str = Query(..., min_length=1),
-    db: Session = Depends(get_db),
+    service: PokemonService = Depends(get_pokemon_service),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    service = PokemonService(db)
     pokemon_list, total = service.search_pokemon(name, skip=offset, limit=limit)
 
     if hasattr(request.state, "wide_event"):
@@ -62,9 +59,8 @@ def search_pokemon(
 def get_pokemon(
     request: Request,
     pokemon_id: int,
-    db: Session = Depends(get_db),
+    service: PokemonService = Depends(get_pokemon_service),
 ):
-    service = PokemonService(db)
     pokemon = service.get_pokemon(pokemon_id)
     if not pokemon:
         if hasattr(request.state, "wide_event"):
@@ -82,11 +78,10 @@ def get_pokemon(
 def get_pokemon_by_region(
     request: Request,
     region_name_or_generation: str,
-    db: Session = Depends(get_db),
+    service: PokemonService = Depends(get_pokemon_service),
     limit: int | None = Query(None, ge=1, le=200),
     offset: int | None = Query(None, ge=0),
 ):
-    service = PokemonService(db)
     try:
         pokemon_list, total = service.get_pokemon_by_region(region_name_or_generation)
 

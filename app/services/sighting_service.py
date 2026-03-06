@@ -1,6 +1,5 @@
 from datetime import datetime
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from app.models import Pokemon, Ranger, Sighting
 from app.repositories.pokemon_repository import PokemonRepository
@@ -8,28 +7,40 @@ from app.repositories.ranger_repository import RangerRepository
 from app.repositories.sighting_repository import SightingRepository
 from app.schemas import SightingCreate
 
+if TYPE_CHECKING:
+    from app.services.campaign_service import CampaignService
+
 
 class SightingService:
-    def __init__(self, db: Session):
-        self.db = db
-        self.repository = SightingRepository(db)
-        self.pokemon_repository = PokemonRepository(db)
-        self.ranger_repository = RangerRepository(db)
+    def __init__(
+        self,
+        sighting_repo: SightingRepository,
+        pokemon_repo: PokemonRepository,
+        ranger_repo: RangerRepository,
+        campaign_service: "CampaignService | None" = None,
+    ):
+        self.sighting_repo = sighting_repo
+        self.pokemon_repo = pokemon_repo
+        self.ranger_repo = ranger_repo
+        self.campaign_service = campaign_service
 
     def create_sighting(
         self, sighting_data: SightingCreate, ranger_id: str
     ) -> tuple[Sighting, Pokemon, Ranger]:
-        ranger = self.ranger_repository.get(ranger_id)
+        ranger = self.ranger_repo.get(ranger_id)
         if not ranger:
             raise ValueError(
                 f"Ranger with ID '{ranger_id}' not found. Only rangers can log sightings."
             )
 
-        pokemon = self.pokemon_repository.get(sighting_data.pokemon_id)
+        pokemon = self.pokemon_repo.get(sighting_data.pokemon_id)
         if not pokemon:
             raise ValueError(f"Pokemon with ID '{sighting_data.pokemon_id}' not found")
 
-        sighting = self.repository.create(
+        if sighting_data.campaign_id and self.campaign_service:
+            self.campaign_service.validate_sighting_campaign(sighting_data.campaign_id)
+
+        sighting = self.sighting_repo.create(
             {
                 "pokemon_id": sighting_data.pokemon_id,
                 "ranger_id": ranger_id,
@@ -44,6 +55,7 @@ class SightingService:
                 "notes": sighting_data.notes,
                 "latitude": sighting_data.latitude,
                 "longitude": sighting_data.longitude,
+                "campaign_id": sighting_data.campaign_id,
             }
         )
 
@@ -52,35 +64,38 @@ class SightingService:
     def get_sighting(
         self, sighting_id: str
     ) -> tuple[Sighting, Pokemon | None, Ranger | None] | None:
-        sighting = self.repository.get(sighting_id)
+        sighting = self.sighting_repo.get(sighting_id)
         if not sighting:
             return None
 
-        pokemon = self.pokemon_repository.get(sighting.pokemon_id)
-        ranger = self.ranger_repository.get(sighting.ranger_id)
+        pokemon = self.pokemon_repo.get(sighting.pokemon_id)
+        ranger = self.ranger_repo.get(sighting.ranger_id)
 
         return sighting, pokemon, ranger
 
     def get_ranger_sightings(
         self, ranger_id: str, skip: int = 0, limit: int = 100
     ) -> tuple[list[tuple[Sighting, Pokemon, Ranger]], int]:
-        ranger = self.ranger_repository.get(ranger_id)
+        ranger = self.ranger_repo.get(ranger_id)
         if not ranger:
             raise ValueError(f"Ranger with ID '{ranger_id}' not found")
 
-        sightings, total = self.repository.get_by_ranger(ranger_id, skip=skip, limit=limit)
+        sightings, total = self.sighting_repo.get_by_ranger(ranger_id, skip=skip, limit=limit)
 
         result = []
         for sighting in sightings:
-            pokemon = self.pokemon_repository.get(sighting.pokemon_id)
+            pokemon = self.pokemon_repo.get(sighting.pokemon_id)
             result.append((sighting, pokemon, ranger))
 
         return result, total
 
     def delete_sighting(self, sighting_id: str, ranger_id: str) -> bool:
-        sighting = self.repository.get(sighting_id)
+        sighting = self.sighting_repo.get(sighting_id)
         if not sighting:
             raise ValueError(f"Sighting with ID '{sighting_id}' not found")
+
+        if self.campaign_service:
+            self.campaign_service.check_sighting_lock(sighting)
 
         if sighting.ranger_id != ranger_id:
             raise ValueError(
@@ -88,7 +103,7 @@ class SightingService:
                 f"not '{ranger_id}'. You can only delete your own sightings."
             )
 
-        return self.repository.delete(sighting_id)
+        return self.sighting_repo.delete(sighting_id)
 
     def filter_sightings(
         self,
@@ -103,7 +118,10 @@ class SightingService:
         skip: int = 0,
         limit: int = 100,
     ) -> tuple[list[tuple[Sighting, Pokemon | None, Ranger | None]], int]:
-        sightings, total = self.repository.filter_sightings(
+        if date_from and date_to and date_from > date_to:
+            raise ValueError("date_from must be before or equal to date_to")
+
+        sightings, total = self.sighting_repo.filter_sightings(
             pokemon_id=pokemon_id,
             region=region,
             weather=weather,
@@ -118,8 +136,8 @@ class SightingService:
 
         result = []
         for sighting in sightings:
-            pokemon = self.pokemon_repository.get(sighting.pokemon_id)
-            ranger = self.ranger_repository.get(sighting.ranger_id)
+            pokemon = self.pokemon_repo.get(sighting.pokemon_id)
+            ranger = self.ranger_repo.get(sighting.ranger_id)
             result.append((sighting, pokemon, ranger))
 
         return result, total

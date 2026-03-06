@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_ranger_service, get_sighting_service
 from app.schemas import (
     PaginatedSightingResponse,
     RangerCreate,
@@ -17,9 +16,8 @@ router = APIRouter(prefix="/rangers", tags=["rangers"])
 def create_ranger(
     request: Request,
     ranger: RangerCreate,
-    db: Session = Depends(get_db),
+    service: RangerService = Depends(get_ranger_service),
 ):
-    service = RangerService(db)
     try:
         new_ranger = service.create_ranger(ranger)
         if hasattr(request.state, "wide_event"):
@@ -41,9 +39,8 @@ def create_ranger(
 def get_ranger(
     request: Request,
     ranger_id: str,
-    db: Session = Depends(get_db),
+    service: RangerService = Depends(get_ranger_service),
 ):
-    service = RangerService(db)
     ranger = service.get_ranger(ranger_id)
     if not ranger:
         if hasattr(request.state, "wide_event"):
@@ -61,11 +58,10 @@ def get_ranger(
 def get_ranger_sightings(
     request: Request,
     ranger_id: str,
-    db: Session = Depends(get_db),
+    service: SightingService = Depends(get_sighting_service),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    service = SightingService(db)
     try:
         sightings_data, total = service.get_ranger_sightings(ranger_id, skip=offset, limit=limit)
 

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_trainer_service
 from app.schemas import TrainerCreate, TrainerResponse
 from app.services import TrainerService
 
@@ -12,9 +11,8 @@ router = APIRouter(prefix="/trainers", tags=["trainers"])
 def create_trainer(
     request: Request,
     trainer: TrainerCreate,
-    db: Session = Depends(get_db),
+    service: TrainerService = Depends(get_trainer_service),
 ):
-    service = TrainerService(db)
     try:
         new_trainer = service.create_trainer(trainer)
         if hasattr(request.state, "wide_event"):
@@ -36,9 +34,8 @@ def create_trainer(
 def get_trainer(
     request: Request,
     trainer_id: str,
-    db: Session = Depends(get_db),
+    service: TrainerService = Depends(get_trainer_service),
 ):
-    service = TrainerService(db)
     trainer = service.get_trainer(trainer_id)
     if not trainer:
         if hasattr(request.state, "wide_event"):

@@ -1,6 +1,59 @@
 # Development Notes
 
+## Feature 2: Research Campaigns with Lifecycle Management
+
+**What changed:**
+- Implemented full CRUD for research campaigns with state machine lifecycle (draft → active → completed → archived)
+- Added Campaign model with CampaignStatus enum for type-safe state management
+- Integrated campaigns with existing sighting system via optional campaign_id foreign key
+- Implemented sighting locking for completed campaigns to prevent data modification
+- Created campaign summary endpoint with aggregated statistics
+- Added comprehensive test coverage for campaign lifecycle
+
+**Why it matters:**
+Rangers can now organize field research into structured campaigns with clear status tracking. The state machine ensures data integrity by preventing backward transitions and locking sightings when campaigns are completed. This provides Professor Oak with the ability to track active vs. completed research efforts and prevents accidental modification of finalized data.
+
+**Design Decisions:**
+
+1. **Authorization Model**: Any ranger can create, update, and transition any campaign (collaborative model). This aligns with the peer confirmation system where any ranger can confirm any sighting. This promotes collaboration and avoids ownership complexity.
+
+2. **State Machine Implementation**: Used Python's StrEnum for type-safe state comparisons with a `can_transition_to()` method that centralizes transition validation logic. This prevents typos in state strings and provides IDE autocomplete support.
+
+3. **Sighting Locking**: Implemented in the service layer by checking campaign status before any sighting modification. This ensures data integrity without requiring database-level constraints.
+
+4. **Campaign Summary**: Uses efficient aggregation queries with SQLAlchemy's `func.count`, `func.min`, and `func.max` to avoid N+1 query problems. The summary is available for all campaign states (not just completed) to allow real-time monitoring of active campaigns.
+
+5. **Database Indexes**: Added indexes on campaign_id and composite indexes (campaign_id, date) for efficient querying of campaign-related sightings.
+
+6. **Backward Compatibility**: Made campaign_id optional in sighting creation to maintain compatibility with existing code. Sightings can exist without being associated with a campaign.
+
+**Technical Implementation:**
+- CampaignStatus enum with transition validation
+- Campaign model with proper indexes and timestamps
+- CampaignRepository extending BaseRepository
+- CampaignService with dependency injection
+- Campaign router with all CRUD endpoints
+- Integration with SightingService for campaign validation and locking
+- Comprehensive test suite covering all lifecycle scenarios
+
+---
+
 ## Commit History
+
+### 5788019 - refactor: implement proper dependency injection across services and controllers
+
+**What changed:**
+- Created service factory functions in app/api/deps.py that use FastAPI's Depends() to inject services
+- Refactored all services (PokemonService, TrainerService, RangerService, SightingService) to receive repositories via constructor injection instead of creating them internally
+- Updated all API controllers to use FastAPI's Depends() for service injection instead of manually instantiating services
+- Moved business validation (date range validation) from controllers to service layer
+- Removed database session dependency from services (repositories now handle it)
+- Removed manual db.rollback() calls from services (repositories handle transactions)
+
+**Why it matters:**
+This implements proper dependency injection, which reduces tight coupling between services and their dependencies. Services no longer create their own repositories, making them easier to test with mock objects. Each layer now has clear responsibilities: controllers handle HTTP concerns, services handle business logic, and repositories handle data access. This architectural improvement enables swapping implementations without changing service code and maintains clean separation of concerns throughout the application.
+
+---
 
 ### ec19b5d - Extract endpoints into modular v1 router structure
 

@@ -510,7 +510,226 @@ class TestCandidateCampaignLifecycle:
     - Sightings tied to a completed campaign are locked (cannot be deleted)
     """
 
-    pass
+    def test_campaign_starts_in_draft_status(self, client, sample_ranger):
+        """Test that a newly created campaign starts in 'draft' status."""
+        response = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Cerulean Cave Survey",
+                "description": "Researching rare Pokémon in Cerulean Cave",
+                "region": "Kanto",
+                "start_date": "2026-02-01T00:00:00",
+                "end_date": "2026-02-28T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["status"] == "draft"
+        assert data["name"] == "Cerulean Cave Survey"
+        assert data["region"] == "Kanto"
+
+    def test_valid_state_transitions(self, client, sample_ranger):
+        """Test that valid state transitions work correctly."""
+        campaign = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Johto Migration Study",
+                "region": "Johto",
+                "start_date": "2026-03-01T00:00:00",
+                "end_date": "2026-03-31T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert campaign.status_code == 201
+        campaign_id = campaign.json()["id"]
+
+        response = client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=active")
+        assert response.status_code == 200
+        assert response.json()["status"] == "active"
+
+        response = client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=completed")
+        assert response.status_code == 200
+        assert response.json()["status"] == "completed"
+
+        response = client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=archived")
+        assert response.status_code == 200
+        assert response.json()["status"] == "archived"
+
+    def test_invalid_state_transitions_rejected(self, client, sample_ranger):
+        """Test that invalid state transitions are rejected."""
+        campaign = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Invalid Transition Test",
+                "region": "Hoenn",
+                "start_date": "2026-04-01T00:00:00",
+                "end_date": "2026-04-30T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert campaign.status_code == 201
+        campaign_id = campaign.json()["id"]
+
+        response = client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=completed")
+        assert response.status_code == 400
+        assert "Cannot transition" in response.json()["detail"]
+
+    def test_sighting_can_be_added_to_active_campaign(self, client, sample_ranger, sample_pokemon):
+        """Test that a sighting can be added to an active campaign."""
+        campaign = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Active Campaign Test",
+                "region": "Kanto",
+                "start_date": "2026-05-01T00:00:00",
+                "end_date": "2026-05-31T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert campaign.status_code == 201
+        campaign_id = campaign.json()["id"]
+
+        client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=active")
+
+        sighting = client.post(
+            "/v1/sightings",
+            json={
+                "pokemon_id": 25,
+                "region": "Kanto",
+                "route": "Route 1",
+                "date": "2026-05-15T10:30:00",
+                "weather": "sunny",
+                "time_of_day": "morning",
+                "height": 0.4,
+                "weight": 6.0,
+                "campaign_id": campaign_id,
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert sighting.status_code == 200
+        assert sighting.json()["campaign_id"] == campaign_id
+
+    def test_sighting_cannot_be_added_to_non_active_campaign(
+        self, client, sample_ranger, sample_pokemon
+    ):
+        """Test that a sighting cannot be added to a draft campaign."""
+        campaign = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Draft Campaign Test",
+                "region": "Kanto",
+                "start_date": "2026-06-01T00:00:00",
+                "end_date": "2026-06-30T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert campaign.status_code == 201
+        campaign_id = campaign.json()["id"]
+
+        sighting = client.post(
+            "/v1/sightings",
+            json={
+                "pokemon_id": 25,
+                "region": "Kanto",
+                "route": "Route 1",
+                "date": "2026-06-15T10:30:00",
+                "weather": "sunny",
+                "time_of_day": "morning",
+                "height": 0.4,
+                "weight": 6.0,
+                "campaign_id": campaign_id,
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert sighting.status_code == 400
+        assert "Only active campaigns can accept new sightings" in sighting.json()["detail"]
+
+    def test_completed_campaign_locks_sightings(self, client, sample_ranger, sample_pokemon):
+        """Test that sightings tied to a completed campaign cannot be deleted."""
+        campaign = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Completed Campaign Lock Test",
+                "region": "Kanto",
+                "start_date": "2026-07-01T00:00:00",
+                "end_date": "2026-07-31T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert campaign.status_code == 201
+        campaign_id = campaign.json()["id"]
+
+        client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=active")
+
+        sighting = client.post(
+            "/v1/sightings",
+            json={
+                "pokemon_id": 25,
+                "region": "Kanto",
+                "route": "Route 1",
+                "date": "2026-07-15T10:30:00",
+                "weather": "sunny",
+                "time_of_day": "morning",
+                "height": 0.4,
+                "weight": 6.0,
+                "campaign_id": campaign_id,
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert sighting.status_code == 200
+        sighting_id = sighting.json()["id"]
+
+        client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=completed")
+
+        delete_response = client.delete(
+            f"/v1/sightings/{sighting_id}", headers={"X-User-ID": sample_ranger["id"]}
+        )
+        assert delete_response.status_code == 403
+        assert "locked" in delete_response.json()["detail"].lower()
+
+    def test_campaign_summary(self, client, sample_ranger, sample_pokemon):
+        """Test that campaign summary returns correct aggregated data."""
+        campaign = client.post(
+            "/v1/campaigns",
+            json={
+                "name": "Summary Test Campaign",
+                "region": "Kanto",
+                "start_date": "2026-08-01T00:00:00",
+                "end_date": "2026-08-31T23:59:59",
+            },
+            headers={"X-User-ID": sample_ranger["id"]},
+        )
+        assert campaign.status_code == 201
+        campaign_id = campaign.json()["id"]
+
+        client.post(f"/v1/campaigns/{campaign_id}/transition?new_status=active")
+
+        for i in range(3):
+            client.post(
+                "/v1/sightings",
+                json={
+                    "pokemon_id": 25,
+                    "region": "Kanto",
+                    "route": f"Route {i}",
+                    "date": f"2026-08-{15+i:02d}T10:30:00",
+                    "weather": "sunny",
+                    "time_of_day": "morning",
+                    "height": 0.4,
+                    "weight": 6.0,
+                    "campaign_id": campaign_id,
+                },
+                headers={"X-User-ID": sample_ranger["id"]},
+            )
+
+        summary = client.get(f"/v1/campaigns/{campaign_id}/summary")
+        assert summary.status_code == 200
+        data = summary.json()
+        assert data["campaign_id"] == campaign_id
+        assert data["total_sightings"] == 3
+        assert data["unique_species"] == 1
+        assert len(data["contributing_rangers"]) == 1
+        assert data["contributing_rangers"][0]["name"] == sample_ranger["name"]
 
 
 class TestCandidateConfirmation:
