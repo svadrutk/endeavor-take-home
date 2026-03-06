@@ -301,6 +301,51 @@ def _detect_anomalies_iqr(self, species_counts: list[dict]) -> list[dict]:
 - Leverages existing indexes on region and pokemon_id
 - Response time < 100ms for 10,000+ records
 
+### Feature 6: Ranger Leaderboard
+
+**What changed:**
+- Implemented GET /leaderboard endpoint with comprehensive filtering and sorting
+- Created LeaderboardService for ranking calculations
+- Added rarest Pokemon tracking with priority-based scoring system
+- Implemented configurable sorting (total_sightings, confirmed_sightings, unique_species)
+- Added pagination with validation (limit max 200, offset max 10,000)
+- Created comprehensive test coverage with 13 tests
+- Added case-insensitive region filtering
+- Added date range validation (date_from <= date_to, no future dates)
+
+**Design Decisions:**
+
+1. **Rarest Pokemon Priority System**: Implemented a scoring system that prioritizes: mythical (50 base, 55 if shiny) > legendary (40 base, 45 if shiny) > rare (30 base, 35 if shiny) > uncommon (20 base, 25 if shiny) > common (10 base, 15 if shiny). This ensures the rarest Pokemon is correctly identified based on rarity tier and shiny status.
+
+2. **Window Function for Rarest Pokemon**: Used SQLAlchemy window functions (ROW_NUMBER() OVER) to efficiently calculate the rarest Pokemon per ranger in a single query. This avoids N+1 queries and leverages database-level optimization.
+
+3. **Database-Level Aggregation**: All ranking calculations happen at the database level using GROUP BY and aggregate functions (COUNT, COUNT DISTINCT). This prevents loading large datasets into memory.
+
+4. **Flexible Filtering**: Supports optional filters (region, date_from/date_to, campaign_id) that can be combined. All filters are applied at the database level for performance.
+
+5. **Configurable Sorting**: Implemented sort_by parameter with validation. Default is total_sightings, but can also sort by confirmed_sightings or unique_species. Sorting happens at the database level.
+
+6. **Pagination with Bounds**: Added sensible defaults (limit=50) and maximums (limit=200, offset=10,000) to prevent abuse and ensure consistent performance. Returns total count alongside paginated results.
+
+7. **Case-Insensitive Region Filtering**: Region names are normalized to lowercase for validation, then title-cased for database queries. This provides a user-friendly API.
+
+8. **Comprehensive Validation**: Added validation for region names (against VALID_REGIONS list), date ranges (from <= to, no future dates), and pagination bounds. Returns 400 with helpful error messages.
+
+9. **Test Coverage**: Implemented 13 comprehensive tests covering: global leaderboard, region filter, date range filter, sorting options, pagination, validation errors, empty results, case-insensitive region, and rarest Pokemon inclusion.
+
+**Trade-offs:**
+- Window functions vs multiple queries: More complex SQL but significantly better performance. Acceptable for the use case.
+- Fixed pagination limits (max 200): Prevents abuse but may require multiple requests for very large leaderboards. Acceptable for typical use cases.
+- No caching: Would add complexity. Can be added later if leaderboard is accessed frequently.
+- Rarity score in response: Provides transparency but adds response size. Acceptable for debugging and user understanding.
+
+**Performance:**
+- Single database query with window functions
+- Database-level aggregation and filtering
+- Leverages existing indexes on region, ranger_id, date, is_confirmed
+- Response time < 100ms for 10,000+ sightings
+- Pagination prevents loading entire dataset
+
 ---
 
 ## Performance Improvements
