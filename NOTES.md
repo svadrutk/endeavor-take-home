@@ -40,6 +40,16 @@ Rangers can now organize field research into structured campaigns with clear sta
 
 ## Commit History
 
+### 53f0247 - test(campaigns): add comprehensive campaign lifecycle tests
+
+**What changed:**
+Added 14 new test methods to TestCandidateCampaignLifecycle covering campaign retrieval, metadata updates, lifecycle transitions, authorization, and edge cases. Tests verify that sightings cannot be added to completed/archived campaigns, sightings are locked when campaigns complete, campaign summaries include date ranges, and proper authorization is enforced.
+
+**Why it matters:**
+Ensures the campaign API endpoints handle all scenarios correctly including error cases, authorization requirements, and multi-ranger collaboration. These tests validate critical business rules like preventing data modification after campaign completion and ensuring only rangers can create campaigns.
+
+---
+
 ### 5788019 - refactor: implement proper dependency injection across services and controllers
 
 **What changed:**
