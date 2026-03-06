@@ -1,17 +1,36 @@
 import logging
 import os
 import sys
+import subprocess
 import structlog
 from typing import Any
 from structlog.types import EventDict
 
 
+def get_git_commit_hash() -> str:
+    """Get the current git commit hash, or 'unknown' if not in a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()[:8]
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return "unknown"
+
+
 def get_environment_context() -> dict:
     """Get environment and deployment context for logging."""
+    commit_hash = os.getenv("COMMIT_SHA") or os.getenv("GIT_COMMIT") or get_git_commit_hash()
+    
     return {
         "app": "poketracker",
         "version": os.getenv("SERVICE_VERSION", "0.0.1"),
-        "commit_hash": os.getenv("COMMIT_SHA", os.getenv("GIT_COMMIT", "unknown")),
+        "commit_hash": commit_hash,
         "environment": os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", "development")),
         "region": os.getenv("REGION", "local"),
         "instance_id": os.getenv("HOSTNAME", "local"),
