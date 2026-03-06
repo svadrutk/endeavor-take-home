@@ -2,6 +2,16 @@
 
 ## Commit History
 
+### 53b468d - Automate commit workflow to eliminate manual input
+
+**What changed:**
+Created `.opencode/commands/commit.md` with fully automated commit workflow that auto-generates commit messages from diffs and auto-generates NOTES.md summaries without requiring user input.
+
+**Why it matters:**
+Eliminates the need to manually provide commit messages and describe changes. The workflow now analyzes diffs automatically to generate conventional commit messages and human-readable summaries, making the commit process faster and more consistent.
+
+---
+
 ### 4d937e7 - Remove logging from repositories and improve environment context
 
 **What changed:**
