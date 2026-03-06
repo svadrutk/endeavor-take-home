@@ -11,10 +11,7 @@ import json
 import random
 import uuid
 import os
-import sys
 from datetime import datetime
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.database import engine, SessionLocal, Base
 from app.models import Pokemon, Ranger, Sighting

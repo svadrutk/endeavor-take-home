@@ -18,7 +18,7 @@
 uv sync
 
 # Run the seed script (note: it's currently broken — see Initial Task)
-uv run python scripts/seed.py
+uv run python -m scripts.seed
 
 # Start the dev server
 uv run uvicorn app.main:app --reload

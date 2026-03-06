@@ -9,7 +9,7 @@ The seed script (`scripts/seed.py`) had multiple incompatibilities with the curr
 1. **Import paths** - Used relative imports instead of absolute imports from the `app` module
    - Changed `from database import` to `from app.database import`
    - Changed `from models import` to `from app.models import`
-   - Added `sys.path.insert(0, ...)` to make the app module discoverable when running from scripts directory
+   - Script must be run as a module: `uv run python -m scripts.seed` (not `uv run python scripts/seed.py`)
 
 2. **Data file path** - Referenced wrong filename
    - Changed `pokedex.json` to `pokedex_entries.json` (line 138)
