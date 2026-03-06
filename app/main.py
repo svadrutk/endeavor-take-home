@@ -1,33 +1,30 @@
-from typing import Optional
-from fastapi import FastAPI, HTTPException, Header, Query, Depends, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+from sqlalchemy.orm import Session
 
-from app.database import engine, SessionLocal, Base
-from app.models import Pokemon, Trainer, Ranger, Sighting
-from app.schemas import (
-    TrainerCreate,
-    TrainerResponse,
-    RangerCreate,
-    RangerResponse,
-    PokemonResponse,
-    PokemonSearchResult,
-    SightingCreate,
-    SightingResponse,
-    UserLookupResponse,
-    MessageResponse,
-    PaginatedSightingResponse,
-    PaginatedPokemonResponse,
-    PaginatedPokemonSearchResult,
-)
-from app.services import TrainerService, RangerService, PokemonService, SightingService
+from app.database import Base, SessionLocal, engine
 from app.logging_config import configure_logging
 from app.middleware import WideEventMiddleware
-
+from app.schemas import (
+    MessageResponse,
+    PaginatedPokemonResponse,
+    PaginatedPokemonSearchResult,
+    PaginatedSightingResponse,
+    PokemonResponse,
+    PokemonSearchResult,
+    RangerCreate,
+    RangerResponse,
+    SightingCreate,
+    SightingResponse,
+    TrainerCreate,
+    TrainerResponse,
+    UserLookupResponse,
+)
+from app.services import PokemonService, RangerService, SightingService, TrainerService
 
 configure_logging(log_level="INFO")
 
@@ -35,11 +32,11 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Endeavor PokéTracker", version="0.0.1")
 
-app.add_middleware(WideEventMiddleware)
+app.add_middleware(WideEventMiddleware)  # ty: ignore[invalid-argument-type]
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(SlowAPIMiddleware)  # ty: ignore[invalid-argument-type]
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -104,7 +101,7 @@ def create_trainer(
                 "type": "ConflictError",
                 "message": str(e),
             }
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from None
 
 
 @app.get("/trainers/{trainer_id}", response_model=TrainerResponse)
@@ -122,10 +119,7 @@ def get_trainer(
                 "type": "NotFoundError",
                 "message": f"Trainer with ID '{trainer_id}' not found",
             }
-        raise HTTPException(
-            status_code=404,
-            detail=f"Trainer with ID '{trainer_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Trainer with ID '{trainer_id}' not found")
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["trainer"] = {"id": trainer.id, "name": trainer.name}
     return trainer
@@ -153,7 +147,7 @@ def create_ranger(
                 "type": "ConflictError",
                 "message": str(e),
             }
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from None
 
 
 @app.get("/rangers/{ranger_id}", response_model=RangerResponse)
@@ -171,10 +165,7 @@ def get_ranger(
                 "type": "NotFoundError",
                 "message": f"Ranger with ID '{ranger_id}' not found",
             }
-        raise HTTPException(
-            status_code=404,
-            detail=f"Ranger with ID '{ranger_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Ranger with ID '{ranger_id}' not found")
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["ranger"] = {"id": ranger.id, "name": ranger.name}
     return ranger
@@ -191,10 +182,8 @@ def get_ranger_sightings(
 ):
     service = SightingService(db)
     try:
-        sightings_data, total = service.get_ranger_sightings(
-            ranger_id, skip=offset, limit=limit
-        )
-        
+        sightings_data, total = service.get_ranger_sightings(ranger_id, skip=offset, limit=limit)
+
         result = []
         for sighting, pokemon, ranger in sightings_data:
             result.append(
@@ -216,12 +205,12 @@ def get_ranger_sightings(
                     ranger_name=ranger.name if ranger else None,
                 )
             )
-        
+
         if hasattr(request.state, "wide_event"):
             request.state.wide_event["ranger_id"] = ranger_id
             request.state.wide_event["sightings_count"] = len(result)
             request.state.wide_event["total_sightings"] = total
-        
+
         return PaginatedSightingResponse(
             results=result,
             total=total,
@@ -234,7 +223,7 @@ def get_ranger_sightings(
                 "type": "NotFoundError",
                 "message": str(e),
             }
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @app.get("/users/lookup", response_model=UserLookupResponse)
@@ -253,7 +242,7 @@ def lookup_user(
                 "role": result["role"],
             }
         return result
-    
+
     ranger_service = RangerService(db)
     result = ranger_service.lookup_user_by_name(name)
     if result:
@@ -263,7 +252,7 @@ def lookup_user(
                 "role": result["role"],
             }
         return result
-    
+
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["error"] = {
             "type": "NotFoundError",
@@ -282,11 +271,11 @@ def list_pokemon(
 ):
     service = PokemonService(db)
     pokemon_list, total = service.list_pokemon(skip=offset, limit=limit)
-    
+
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["pokemon_count"] = len(pokemon_list)
         request.state.wide_event["total_pokemon"] = total
-    
+
     return PaginatedPokemonResponse(
         results=[PokemonResponse.model_validate(p) for p in pokemon_list],
         total=total,
@@ -306,11 +295,11 @@ def search_pokemon(
 ):
     service = PokemonService(db)
     pokemon_list, total = service.search_pokemon(name, skip=offset, limit=limit)
-    
+
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["search_term"] = name
         request.state.wide_event["results_count"] = len(pokemon_list)
-    
+
     return PaginatedPokemonSearchResult(
         results=[PokemonSearchResult.model_validate(p) for p in pokemon_list],
         total=total,
@@ -334,10 +323,7 @@ def get_pokemon(
                 "type": "NotFoundError",
                 "message": f"Pokemon with ID '{pokemon_id}' not found",
             }
-        raise HTTPException(
-            status_code=404,
-            detail=f"Pokemon with ID '{pokemon_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Pokemon with ID '{pokemon_id}' not found")
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["pokemon"] = {"id": pokemon.id, "name": pokemon.name}
     return PokemonResponse.model_validate(pokemon)
@@ -349,19 +335,19 @@ def get_pokemon_by_region(
     request: Request,
     region_name_or_generation: str,
     db: Session = Depends(get_db),
-    limit: Optional[int] = Query(None, ge=1, le=200),
-    offset: Optional[int] = Query(None, ge=0),
+    limit: int | None = Query(None, ge=1, le=200),
+    offset: int | None = Query(None, ge=0),
 ):
     service = PokemonService(db)
     try:
         pokemon_list, total = service.get_pokemon_by_region(region_name_or_generation)
-        
+
         if hasattr(request.state, "wide_event"):
             request.state.wide_event["region"] = region_name_or_generation
             request.state.wide_event["pokemon_count"] = len(pokemon_list)
-        
+
         if limit is not None and offset is not None:
-            paginated_list = pokemon_list[offset:offset+limit]
+            paginated_list = pokemon_list[offset : offset + limit]
             return PaginatedPokemonResponse(
                 results=[PokemonResponse.model_validate(p) for p in paginated_list],
                 total=total,
@@ -376,7 +362,7 @@ def get_pokemon_by_region(
                 "type": "ValidationError",
                 "message": str(e),
             }
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @app.post("/sightings", response_model=SightingResponse, status_code=200)
@@ -385,7 +371,7 @@ def create_sighting(
     request: Request,
     sighting: SightingCreate,
     db: Session = Depends(get_db),
-    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    x_user_id: str | None = Header(None, alias="X-User-ID"),
 ):
     if not x_user_id:
         if hasattr(request.state, "wide_event"):
@@ -395,13 +381,13 @@ def create_sighting(
             }
         raise HTTPException(
             status_code=401,
-            detail="X-User-ID header is required. Please provide your user ID to create a sighting."
+            detail="X-User-ID header is required. Please provide your user ID to create a sighting.",
         )
-    
+
     service = SightingService(db)
     try:
         new_sighting, pokemon, ranger = service.create_sighting(sighting, x_user_id)
-        
+
         if hasattr(request.state, "wide_event"):
             request.state.wide_event["sighting"] = {
                 "id": new_sighting.id,
@@ -411,7 +397,7 @@ def create_sighting(
                 "ranger_name": ranger.name,
                 "region": new_sighting.region,
             }
-        
+
         return SightingResponse(
             id=new_sighting.id,
             pokemon_id=new_sighting.pokemon_id,
@@ -436,8 +422,8 @@ def create_sighting(
                 "message": str(e),
             }
         if "Ranger" in str(e):
-            raise HTTPException(status_code=403, detail=str(e))
-        raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=403, detail=str(e)) from None
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @app.get("/sightings/{sighting_id}", response_model=SightingResponse)
@@ -449,27 +435,24 @@ def get_sighting(
 ):
     service = SightingService(db)
     result = service.get_sighting(sighting_id)
-    
+
     if not result:
         if hasattr(request.state, "wide_event"):
             request.state.wide_event["error"] = {
                 "type": "NotFoundError",
                 "message": f"Sighting with ID '{sighting_id}' not found",
             }
-        raise HTTPException(
-            status_code=404,
-            detail=f"Sighting with ID '{sighting_id}' not found"
-        )
-    
+        raise HTTPException(status_code=404, detail=f"Sighting with ID '{sighting_id}' not found")
+
     sighting, pokemon, ranger = result
-    
+
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["sighting"] = {
             "id": sighting.id,
             "pokemon_id": sighting.pokemon_id,
             "region": sighting.region,
         }
-    
+
     return SightingResponse(
         id=sighting.id,
         pokemon_id=sighting.pokemon_id,
@@ -495,7 +478,7 @@ def delete_sighting(
     request: Request,
     sighting_id: str,
     db: Session = Depends(get_db),
-    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    x_user_id: str | None = Header(None, alias="X-User-ID"),
 ):
     if not x_user_id:
         if hasattr(request.state, "wide_event"):
@@ -505,9 +488,9 @@ def delete_sighting(
             }
         raise HTTPException(
             status_code=401,
-            detail="X-User-ID header is required. Please provide your user ID to delete a sighting."
+            detail="X-User-ID header is required. Please provide your user ID to delete a sighting.",
         )
-    
+
     service = SightingService(db)
     try:
         success = service.delete_sighting(sighting_id, x_user_id)
@@ -525,5 +508,5 @@ def delete_sighting(
                 "message": str(e),
             }
         if "Permission denied" in str(e):
-            raise HTTPException(status_code=403, detail=str(e))
-        raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=403, detail=str(e)) from None
+        raise HTTPException(status_code=404, detail=str(e)) from None

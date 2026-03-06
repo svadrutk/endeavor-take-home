@@ -1,9 +1,10 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # --- Trainer ---
+
 
 class TrainerCreate(BaseModel):
     name: str = Field(..., min_length=1)
@@ -20,6 +21,7 @@ class TrainerResponse(BaseModel):
 
 
 # --- Ranger ---
+
 
 class RangerCreate(BaseModel):
     name: str = Field(..., min_length=1)
@@ -39,6 +41,7 @@ class RangerResponse(BaseModel):
 
 # --- User Lookup ---
 
+
 class UserLookupResponse(BaseModel):
     id: str
     name: str
@@ -47,19 +50,20 @@ class UserLookupResponse(BaseModel):
 
 # --- Pokemon ---
 
+
 class PokemonResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
     type1: str
-    type2: Optional[str]
+    type2: str | None
     generation: int
     is_legendary: bool
     is_mythical: bool
     is_baby: bool
     capture_rate: int
-    evolution_chain_id: Optional[int]
+    evolution_chain_id: int | None
 
 
 class PokemonSearchResult(BaseModel):
@@ -68,11 +72,12 @@ class PokemonSearchResult(BaseModel):
     id: int
     name: str
     type1: str
-    type2: Optional[str]
+    type2: str | None
     generation: int
 
 
 # --- Sighting ---
+
 
 class SightingCreate(BaseModel):
     pokemon_id: int
@@ -84,9 +89,9 @@ class SightingCreate(BaseModel):
     height: float
     weight: float
     is_shiny: bool = False
-    notes: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    notes: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class SightingResponse(BaseModel):
@@ -103,19 +108,21 @@ class SightingResponse(BaseModel):
     height: float
     weight: float
     is_shiny: bool
-    notes: Optional[str]
+    notes: str | None
     is_confirmed: bool
-    pokemon_name: Optional[str] = None
-    ranger_name: Optional[str] = None
+    pokemon_name: str | None = None
+    ranger_name: str | None = None
 
 
 # --- Generic ---
+
 
 class MessageResponse(BaseModel):
     detail: str
 
 
 # --- Pagination ---
+
 
 class PaginatedSightingResponse(BaseModel):
     results: list[SightingResponse]

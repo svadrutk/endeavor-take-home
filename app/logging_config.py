@@ -1,9 +1,10 @@
 import logging
 import os
-import sys
 import subprocess
-import structlog
+import sys
 from typing import Any
+
+import structlog
 from structlog.types import EventDict
 
 
@@ -26,7 +27,7 @@ def get_git_commit_hash() -> str:
 def get_environment_context() -> dict:
     """Get environment and deployment context for logging."""
     commit_hash = os.getenv("COMMIT_SHA") or os.getenv("GIT_COMMIT") or get_git_commit_hash()
-    
+
     return {
         "app": "poketracker",
         "version": os.getenv("SERVICE_VERSION", "0.0.1"),
@@ -39,15 +40,15 @@ def get_environment_context() -> dict:
 
 def configure_logging(log_level: str = "INFO") -> None:
     """Configure structlog with JSON output for production and human-readable for dev."""
-    
+
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=getattr(logging, log_level.upper()),
     )
-    
+
     env_context = get_environment_context()
-    
+
     def add_app_context(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
         """Add application context to all log entries."""
         event_dict["app"] = env_context["app"]
@@ -56,7 +57,7 @@ def configure_logging(log_level: str = "INFO") -> None:
         event_dict["environment"] = env_context["environment"]
         event_dict["region"] = env_context["region"]
         return event_dict
-    
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

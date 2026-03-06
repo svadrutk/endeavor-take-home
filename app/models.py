@@ -1,7 +1,6 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from sqlalchemy import ForeignKey, String, Text, Index
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -19,8 +18,8 @@ class Pokemon(Base):
     is_legendary: Mapped[bool] = mapped_column(default=False)
     is_mythical: Mapped[bool] = mapped_column(default=False)
     is_baby: Mapped[bool] = mapped_column(default=False)
-    type2: Mapped[Optional[str]] = mapped_column(default=None)
-    evolution_chain_id: Mapped[Optional[int]] = mapped_column(default=None)
+    type2: Mapped[str | None] = mapped_column(default=None)
+    evolution_chain_id: Mapped[int | None] = mapped_column(default=None)
 
 
 class Trainer(Base):
@@ -29,10 +28,15 @@ class Trainer(Base):
     name: Mapped[str] = mapped_column(String(128), unique=True)
     email: Mapped[str] = mapped_column(String(255), unique=True)
     id: Mapped[str] = mapped_column(
-        primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
+        primary_key=True,
+        init=False,
+        default_factory=generate_uuid,
+        insert_default=generate_uuid,
     )
     created_at: Mapped[datetime] = mapped_column(
-        init=False, default_factory=lambda: datetime.now(timezone.utc), insert_default=lambda: datetime.now(timezone.utc),
+        init=False,
+        default_factory=lambda: datetime.now(UTC),
+        insert_default=lambda: datetime.now(UTC),
     )
 
 
@@ -43,24 +47,29 @@ class Ranger(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)
     specialization: Mapped[str]
     id: Mapped[str] = mapped_column(
-        primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
+        primary_key=True,
+        init=False,
+        default_factory=generate_uuid,
+        insert_default=generate_uuid,
     )
     created_at: Mapped[datetime] = mapped_column(
-        init=False, default_factory=lambda: datetime.now(timezone.utc), insert_default=lambda: datetime.now(timezone.utc),
+        init=False,
+        default_factory=lambda: datetime.now(UTC),
+        insert_default=lambda: datetime.now(UTC),
     )
 
 
 class Sighting(Base):
     __tablename__ = "sightings"
     __table_args__ = (
-        Index('idx_sightings_region', 'region'),
-        Index('idx_sightings_ranger_id', 'ranger_id'),
-        Index('idx_sightings_date', 'date'),
-        Index('idx_sightings_pokemon_id', 'pokemon_id'),
-        Index('idx_sightings_ranger_date', 'ranger_id', 'date'),
-        Index('idx_sightings_region_date', 'region', 'date'),
-        Index('idx_sightings_is_confirmed', 'is_confirmed'),
-        {"extend_existing": True}
+        Index("idx_sightings_region", "region"),
+        Index("idx_sightings_ranger_id", "ranger_id"),
+        Index("idx_sightings_date", "date"),
+        Index("idx_sightings_pokemon_id", "pokemon_id"),
+        Index("idx_sightings_ranger_date", "ranger_id", "date"),
+        Index("idx_sightings_region_date", "region", "date"),
+        Index("idx_sightings_is_confirmed", "is_confirmed"),
+        {"extend_existing": True},
     )
 
     pokemon_id: Mapped[int] = mapped_column(ForeignKey("pokemon.id"))
@@ -73,12 +82,15 @@ class Sighting(Base):
     height: Mapped[float]
     weight: Mapped[float]
     is_shiny: Mapped[bool] = mapped_column(default=False)
-    notes: Mapped[Optional[str]] = mapped_column(Text, default=None)
-    latitude: Mapped[Optional[float]] = mapped_column(default=None)
-    longitude: Mapped[Optional[float]] = mapped_column(default=None)
+    notes: Mapped[str | None] = mapped_column(Text, default=None)
+    latitude: Mapped[float | None] = mapped_column(default=None)
+    longitude: Mapped[float | None] = mapped_column(default=None)
     is_confirmed: Mapped[bool] = mapped_column(default=False)
     id: Mapped[str] = mapped_column(
-        primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
+        primary_key=True,
+        init=False,
+        default_factory=generate_uuid,
+        insert_default=generate_uuid,
     )
-    
+
     pokemon: Mapped["Pokemon"] = relationship(init=False, lazy="select")

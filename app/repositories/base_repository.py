@@ -1,23 +1,26 @@
-from typing import TypeVar, Generic, Type, Optional, List, Any
-from sqlalchemy.orm import Session
+from typing import Any, TypeVar
+
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.database import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
 
 
-class BaseRepository(Generic[ModelType]):
-    def __init__(self, db: Session, model: Type[ModelType]):
+class BaseRepository[ModelType]:
+    def __init__(self, db: Session, model: type[ModelType]):
         self.db = db
         self.model = model
 
-    def get(self, id: Any) -> Optional[ModelType]:
-        return self.db.query(self.model).filter(self.model.id == id).first()
+    def get(self, id: Any) -> ModelType | None:
+        return (
+            self.db.query(self.model).filter(self.model.id == id).first()  # type: ignore
+        )
 
     def get_multi(
-        self, skip: int = 0, limit: int = 100, order_by: Optional[Any] = None
-    ) -> List[ModelType]:
+        self, skip: int = 0, limit: int = 100, order_by: Any | None = None
+    ) -> list[ModelType]:
         query = self.db.query(self.model)
         if order_by is not None:
             query = query.order_by(order_by)
@@ -30,7 +33,7 @@ class BaseRepository(Generic[ModelType]):
             self.db.commit()
             self.db.refresh(db_obj)
             return db_obj
-        except IntegrityError as e:
+        except IntegrityError:
             self.db.rollback()
             raise
 
@@ -43,7 +46,9 @@ class BaseRepository(Generic[ModelType]):
         return db_obj
 
     def delete(self, id: Any) -> bool:
-        obj = self.db.query(self.model).filter(self.model.id == id).first()
+        obj = (
+            self.db.query(self.model).filter(self.model.id == id).first()  # type: ignore
+        )
         if obj:
             self.db.delete(obj)
             self.db.commit()

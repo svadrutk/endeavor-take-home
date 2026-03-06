@@ -1,9 +1,7 @@
-from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.repositories.pokemon_repository import PokemonRepository
 from app.models import Pokemon
-
+from app.repositories.pokemon_repository import PokemonRepository
 
 REGION_TO_GENERATION = {
     "kanto": 1,
@@ -21,23 +19,25 @@ class PokemonService:
         self.db = db
         self.repository = PokemonRepository(db)
 
-    def get_pokemon(self, pokemon_id: int) -> Optional[Pokemon]:
+    def get_pokemon(self, pokemon_id: int) -> Pokemon | None:
         return self.repository.get(pokemon_id)
 
-    def list_pokemon(self, skip: int = 0, limit: int = 100) -> Tuple[List[Pokemon], int]:
+    def list_pokemon(self, skip: int = 0, limit: int = 100) -> tuple[list[Pokemon], int]:
         total = self.repository.count()
         pokemon_list = self.repository.get_multi(skip=skip, limit=limit, order_by=Pokemon.id)
         return pokemon_list, total
 
-    def search_pokemon(self, name: str, skip: int = 0, limit: int = 100) -> Tuple[List[Pokemon], int]:
+    def search_pokemon(
+        self, name: str, skip: int = 0, limit: int = 100
+    ) -> tuple[list[Pokemon], int]:
         total = self.repository.count_by_name_search(name)
         pokemon_list = self.repository.search_by_name(name, skip=skip, limit=limit)
         return pokemon_list, total
 
-    def get_pokemon_by_region(self, region_or_generation: str) -> Tuple[List[Pokemon], int]:
+    def get_pokemon_by_region(self, region_or_generation: str) -> tuple[list[Pokemon], int]:
         region_lower = region_or_generation.lower()
         generation = REGION_TO_GENERATION.get(region_lower)
-        
+
         if generation is None:
             try:
                 generation = int(region_or_generation)
@@ -54,7 +54,7 @@ class PokemonService:
                     f"Invalid region or generation: '{region_or_generation}'. "
                     f"Valid regions: {', '.join(sorted(VALID_REGIONS))}. "
                     f"Valid generations: {', '.join(map(str, sorted(VALID_GENERATIONS)))}"
-                )
-        
+                ) from None
+
         pokemon_list = self.repository.get_by_generation(generation)
         return pokemon_list, len(pokemon_list)

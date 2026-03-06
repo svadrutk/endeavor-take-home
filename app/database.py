@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, MappedAsDataclass
+from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass, sessionmaker
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///poketracker.db"
 
