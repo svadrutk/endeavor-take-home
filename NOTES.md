@@ -2,6 +2,20 @@
 
 ## Commit History
 
+### ca21756 - Add pre-commit hooks and modernize Python syntax
+
+**What changed:**
+- Added pre-commit configuration with ruff (linter/formatter), ty (type checker), and pytest hooks
+- Modernized Python syntax to use Python 3.12 features: replaced `Optional[X]` with `X | None`, updated generic class syntax from `Generic[T]` to `[T]`, and changed `datetime.timezone.utc` to `datetime.UTC`
+- Added ruff, ty, and pytest configuration to pyproject.toml with linting rules and coverage reporting
+- Created helper scripts: check.sh (runs all checks) and format.sh (formats code)
+- Fixed type ignore comments in base_repository.py to work with ty type checker
+
+**Why it matters:**
+Pre-commit hooks ensure code quality checks run automatically before every commit, preventing issues from being committed. Modern Python syntax improves readability and reduces boilerplate. Automated linting and formatting maintain consistent code style across the team. Type checking catches potential bugs early in development. Test coverage reporting helps identify untested code paths.
+
+---
+
 ### 53b468d - Automate commit workflow to eliminate manual input
 
 **What changed:**
