@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.utils import generate_uuid
@@ -26,8 +26,8 @@ class Pokemon(Base):
 class Trainer(Base):
     __tablename__ = "trainers"
 
-    name: Mapped[str]
-    email: Mapped[str]
+    name: Mapped[str] = mapped_column(String(128), unique=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
     id: Mapped[str] = mapped_column(
         primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
     )
@@ -39,8 +39,8 @@ class Trainer(Base):
 class Ranger(Base):
     __tablename__ = "rangers"
 
-    name: Mapped[str]
-    email: Mapped[str]
+    name: Mapped[str] = mapped_column(String(128), unique=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
     specialization: Mapped[str]
     id: Mapped[str] = mapped_column(
         primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
@@ -52,6 +52,7 @@ class Ranger(Base):
 
 class Sighting(Base):
     __tablename__ = "sightings"
+    __table_args__ = {"extend_existing": True}
 
     pokemon_id: Mapped[int] = mapped_column(ForeignKey("pokemon.id"))
     ranger_id: Mapped[str] = mapped_column(ForeignKey("rangers.id"))
@@ -70,3 +71,5 @@ class Sighting(Base):
     id: Mapped[str] = mapped_column(
         primary_key=True, init=False, default_factory=generate_uuid, insert_default=generate_uuid,
     )
+    
+    pokemon: Mapped["Pokemon"] = relationship(init=False, lazy="select")

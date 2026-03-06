@@ -87,7 +87,9 @@ class TestPokedex:
         response = client.get("/pokedex")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == len(sample_pokemon)
+        assert "results" in data
+        assert "total" in data
+        assert data["total"] == len(sample_pokemon)
 
     def test_get_pokemon_by_id(self, client, sample_pokemon):
         response = client.get("/pokedex/25")
@@ -101,7 +103,7 @@ class TestPokedex:
         assert response.status_code == 404
 
     def test_get_pokemon_by_region(self, client, sample_pokemon):
-        response = client.get("/pokedex/kanto")
+        response = client.get("/pokedex/region/kanto")
         assert response.status_code == 200
         data = response.json()
         # All sample Gen 1 pokemon
@@ -113,8 +115,10 @@ class TestPokedex:
         response = client.get("/pokedex/search", params={"name": "char"})
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 1
-        assert any(p["name"] == "Charmander" for p in data)
+        assert "results" in data
+        assert "total" in data
+        assert data["total"] >= 1
+        assert any(p["name"] == "Charmander" for p in data["results"])
 
 
 # ============================================================
@@ -234,8 +238,10 @@ class TestRangerSightings:
         response = client.get(f"/rangers/{sample_ranger['id']}/sightings")
         assert response.status_code == 200
         data = response.json()
-        assert len(data) >= 1
-        assert data[0]["ranger_id"] == sample_ranger["id"]
+        assert "results" in data
+        assert "total" in data
+        assert data["total"] >= 1
+        assert data["results"][0]["ranger_id"] == sample_ranger["id"]
 
     def test_get_ranger_sightings_not_found(self, client):
         response = client.get("/rangers/nonexistent-uuid/sightings")

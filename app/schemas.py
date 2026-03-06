@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import datetime
 from typing import Literal, Optional
 
@@ -6,8 +6,8 @@ from typing import Literal, Optional
 # --- Trainer ---
 
 class TrainerCreate(BaseModel):
-    name: str
-    email: str
+    name: str = Field(..., min_length=1)
+    email: EmailStr
 
 
 class TrainerResponse(BaseModel):
@@ -22,9 +22,9 @@ class TrainerResponse(BaseModel):
 # --- Ranger ---
 
 class RangerCreate(BaseModel):
-    name: str
-    email: str
-    specialization: str
+    name: str = Field(..., min_length=1)
+    email: EmailStr
+    specialization: str = Field(..., min_length=1)
 
 
 class RangerResponse(BaseModel):
@@ -113,3 +113,26 @@ class SightingResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     detail: str
+
+
+# --- Pagination ---
+
+class PaginatedSightingResponse(BaseModel):
+    results: list[SightingResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class PaginatedPokemonResponse(BaseModel):
+    results: list[PokemonResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class PaginatedPokemonSearchResult(BaseModel):
+    results: list[PokemonSearchResult]
+    total: int
+    limit: int
+    offset: int

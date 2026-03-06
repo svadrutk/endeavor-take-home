@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Header, Query, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from typing import Optional, Any
 from datetime import datetime
 
@@ -16,6 +17,9 @@ from app.schemas import (
     SightingResponse,
     UserLookupResponse,
     MessageResponse,
+    PaginatedSightingResponse,
+    PaginatedPokemonResponse,
+    PaginatedPokemonSearchResult,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -43,13 +47,17 @@ REGION_TO_GENERATION = {
 
 # ---------- Trainers ----------
 
-@app.post("/trainers")
-def create_trainer(trainer: TrainerCreate, db: Session = Depends(get_db)) -> Trainer:
+@app.post("/trainers", response_model=TrainerResponse)
+def create_trainer(trainer: TrainerCreate, db: Session = Depends(get_db)):
     new_trainer = Trainer(name=trainer.name, email=trainer.email)
     db.add(new_trainer)
-    db.commit()
-    db.refresh(new_trainer)
-    return new_trainer
+    try:
+        db.commit()
+        db.refresh(new_trainer)
+        return new_trainer
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Trainer with this name or email already exists")
 
 
 @app.get("/trainers/{trainer_id}", response_model=TrainerResponse)
@@ -70,9 +78,13 @@ def create_ranger(ranger: RangerCreate, db: Session = Depends(get_db)):
         specialization=ranger.specialization,
     )
     db.add(new_ranger)
-    db.commit()
-    db.refresh(new_ranger)
-    return new_ranger
+    try:
+        db.commit()
+        db.refresh(new_ranger)
+        return new_ranger
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Ranger with this name or email already exists")
 
 
 @app.get("/rangers/{ranger_id}", response_model=RangerResponse)
@@ -83,20 +95,42 @@ def get_ranger(ranger_id: str, db: Session = Depends(get_db)):
     return ranger
 
 
-@app.get("/rangers/{ranger_id}/sightings", response_model=list[SightingResponse])
-def get_ranger_sightings(ranger_id: str, db: Session = Depends(get_db)):
+@app.get("/rangers/{ranger_id}/sightings", response_model=PaginatedSightingResponse)
+def get_ranger_sightings(
+    ranger_id: str,
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     ranger = db.query(Ranger).filter(Ranger.id == ranger_id).first()
     if not ranger:
         raise HTTPException(status_code=404, detail="Ranger not found")
-    sightings = db.query(Sighting).filter(Sighting.ranger_id == ranger_id).all()
+    
+    total = db.query(Sighting).filter(Sighting.ranger_id == ranger_id).count()
+    
+    sightings = (
+        db.query(Sighting)
+        .options(joinedload(Sighting.pokemon))
+        .filter(Sighting.ranger_id == ranger_id)
+        .order_by(Sighting.date.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+    
     result = []
     for s in sightings:
-        pokemon = db.query(Pokemon).filter(Pokemon.id == s.pokemon_id).first()
         resp = SightingResponse.model_validate(s)
-        resp.pokemon_name = pokemon.name if pokemon else None
+        resp.pokemon_name = s.pokemon.name if s.pokemon else None
         resp.ranger_name = ranger.name
         result.append(resp)
-    return result
+    
+    return PaginatedSightingResponse(
+        results=result,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 # ---------- User Lookup ----------
@@ -114,38 +148,67 @@ def lookup_user(name: str = Query(...), db: Session = Depends(get_db)):
 
 # ---------- Pokédex ----------
 
-@app.get("/pokedex", response_model=list[PokemonResponse])
-def list_pokemon(db: Session = Depends(get_db)):
-    pokemon_list = db.query(Pokemon).all()
-    return pokemon_list
+@app.get("/pokedex", response_model=PaginatedPokemonResponse)
+def list_pokemon(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    total = db.query(Pokemon).count()
+    pokemon_list = db.query(Pokemon).order_by(Pokemon.id).limit(limit).offset(offset).all()
+    return PaginatedPokemonResponse(
+        results=[PokemonResponse.model_validate(p) for p in pokemon_list],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
-@app.get("/pokedex/search", response_model=list[PokemonSearchResult])
-def search_pokemon(name: str = Query(..., min_length=1), db: Session = Depends(get_db)):
-    return db.query(Pokemon).filter(Pokemon.name.ilike(f"{name}%")).all()
+@app.get("/pokedex/search", response_model=PaginatedPokemonSearchResult)
+def search_pokemon(
+    name: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    total = db.query(Pokemon).filter(Pokemon.name.ilike(f"%{name}%")).count()
+    results = (
+        db.query(Pokemon)
+        .filter(Pokemon.name.ilike(f"%{name}%"))
+        .order_by(Pokemon.id)
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+    return PaginatedPokemonSearchResult(
+        results=[PokemonSearchResult.model_validate(p) for p in results],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
-@app.get("/pokedex/{pokemon_id_or_region}")
-def get_pokemon(pokemon_id_or_region: str, db: Session = Depends(get_db)):
-    # Check if it's a numeric ID
-    try:
-        pokemon_id = int(pokemon_id_or_region)
-        pokemon = db.query(Pokemon).filter(Pokemon.id == pokemon_id).first()
-        if not pokemon:
-            raise HTTPException(status_code=404, detail="Pokémon not found")
-        return PokemonResponse.model_validate(pokemon)
-    except ValueError:
-        pass
+@app.get("/pokedex/{pokemon_id}", response_model=PokemonResponse)
+def get_pokemon(pokemon_id: int, db: Session = Depends(get_db)):
+    pokemon = db.query(Pokemon).filter(Pokemon.id == pokemon_id).first()
+    if not pokemon:
+        raise HTTPException(status_code=404, detail="Pokémon not found")
+    return PokemonResponse.model_validate(pokemon)
 
-    # Check if it's a region name or generation number
-    region_lower = pokemon_id_or_region.lower()
+
+@app.get("/pokedex/region/{region_name_or_generation}", response_model=list[PokemonResponse])
+def get_pokemon_by_region(region_name_or_generation: str, db: Session = Depends(get_db)):
+    region_lower = region_name_or_generation.lower()
     generation = REGION_TO_GENERATION.get(region_lower)
     if generation is None:
         try:
-            generation = int(pokemon_id_or_region)
+            generation = int(region_name_or_generation)
         except ValueError:
-            raise HTTPException(status_code=404, detail="Invalid Pokémon ID or region name")
-
+            raise HTTPException(status_code=404, detail="Invalid region name or generation number")
+    
+    if generation < 1 or generation > 4:
+        raise HTTPException(status_code=404, detail="Generation must be between 1 and 4")
+    
     pokemon_list = db.query(Pokemon).filter(Pokemon.generation == generation).all()
     return [PokemonResponse.model_validate(p) for p in pokemon_list]
 
