@@ -16,8 +16,8 @@ class TestRegionalAnalysis:
                 json={
                     "pokemon_id": pokemon_id,
                     "region": "Kanto",
-                    "route": f"Route {i+1}",
-                    "date": f"2025-06-{15+i:02d}T10:30:00",
+                    "route": f"Route {i + 1}",
+                    "date": f"2025-06-{15 + i:02d}T10:30:00",
                     "weather": ["sunny", "rainy", "clear", "foggy", "snowy"][i],
                     "time_of_day": ["morning", "day", "night", "morning", "day"][i],
                     "height": 0.4,
@@ -160,8 +160,8 @@ class TestRegionalAnalysis:
                 json={
                     "pokemon_id": 25,
                     "region": "Hoenn",
-                    "route": f"Route {i+1}",
-                    "date": f"2025-06-{15+i:02d}T10:30:00",
+                    "route": f"Route {i + 1}",
+                    "date": f"2025-06-{15 + i:02d}T10:30:00",
                     "weather": "sunny",
                     "time_of_day": "morning",
                     "height": 0.4,
@@ -176,8 +176,8 @@ class TestRegionalAnalysis:
                 json={
                     "pokemon_id": 1,
                     "region": "Hoenn",
-                    "route": f"Route {i+4}",
-                    "date": f"2025-06-{18+i:02d}T10:30:00",
+                    "route": f"Route {i + 4}",
+                    "date": f"2025-06-{18 + i:02d}T10:30:00",
                     "weather": "rainy",
                     "time_of_day": "day",
                     "height": 0.7,

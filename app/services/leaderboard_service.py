@@ -77,7 +77,7 @@ class LeaderboardService:
     ):
         if region and region.lower() not in VALID_REGIONS:
             raise ValueError(
-                f"Invalid region: '{region}'. " f"Valid regions: {', '.join(sorted(VALID_REGIONS))}"
+                f"Invalid region: '{region}'. Valid regions: {', '.join(sorted(VALID_REGIONS))}"
             )
 
         if date_from and date_to and date_from > date_to:

@@ -16,8 +16,8 @@ class TestRegionalSummary:
                 json={
                     "pokemon_id": pokemon_id,
                     "region": "Kanto",
-                    "route": f"Route {i+1}",
-                    "date": f"2025-06-{15+i:02d}T10:30:00",
+                    "route": f"Route {i + 1}",
+                    "date": f"2025-06-{15 + i:02d}T10:30:00",
                     "weather": ["sunny", "rainy", "clear"][i],
                     "time_of_day": ["morning", "day", "night"][i],
                     "height": 0.4,

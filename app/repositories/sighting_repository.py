@@ -142,12 +142,12 @@ class SightingRepository(BaseRepository[Sighting]):
                 "unique_species": 0,
             }
 
-        total = query_result.total if query_result.total is not None else 0  # type: ignore[attr-defined]
-        confirmed = query_result.confirmed if query_result.confirmed is not None else 0  # type: ignore[attr-defined]
-        unconfirmed = query_result.unconfirmed if query_result.unconfirmed is not None else 0  # type: ignore[attr-defined]
+        total = query_result.total if query_result.total is not None else 0
+        confirmed = query_result.confirmed if query_result.confirmed is not None else 0
+        unconfirmed = query_result.unconfirmed if query_result.unconfirmed is not None else 0
         unique_species = (
             query_result.unique_species if query_result.unique_species is not None else 0
-        )  # type: ignore[attr-defined]
+        )
 
         return {
             "total": total,

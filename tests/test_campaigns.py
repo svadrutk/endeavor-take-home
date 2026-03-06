@@ -218,7 +218,7 @@ class TestCandidateCampaignLifecycle:
                     "pokemon_id": 25,
                     "region": "Kanto",
                     "route": f"Route {i}",
-                    "date": f"2026-08-{15+i:02d}T10:30:00",
+                    "date": f"2026-08-{15 + i:02d}T10:30:00",
                     "weather": "sunny",
                     "time_of_day": "morning",
                     "height": 0.4,
