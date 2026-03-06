@@ -30,6 +30,10 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
             "type": "RateLimitExceeded",
             "message": "Rate limit exceeded",
         }
+        request.state.wide_event["rate_limit"] = {
+            "exceeded": True,
+            "detail": str(exc.detail) if hasattr(exc, "detail") else "unknown",
+        }
     return JSONResponse(
         status_code=429,
         content={"detail": "Rate limit exceeded. Please slow down."},

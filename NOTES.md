@@ -40,6 +40,19 @@ Rangers can now organize field research into structured campaigns with clear sta
 
 ## Commit History
 
+### 731daf3 - feat(logging): add user context and rate limit info to wide events, convert seed script to structured logging
+
+**What changed:**
+- Added user_id and user_role fields to wide event middleware
+- Enhanced get_current_user dependency to populate user_role in wide events for rangers and trainers
+- Added rate limit details to wide events when rate limiting occurs
+- Converted seed.py script from print statements to structured logging with structlog
+
+**Why it matters:**
+Wide events now capture complete user context (ID and role) for every request, enabling better debugging and analytics. Rate limit information in wide events helps identify and investigate throttling issues. Structured logging in seed script provides consistent, parseable logs that integrate with the application's logging infrastructure. These observability improvements make it easier to trace request flows, identify performance issues, and debug authentication/authorization problems.
+
+---
+
 ### 53f0247 - test(campaigns): add comprehensive campaign lifecycle tests
 
 **What changed:**

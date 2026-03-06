@@ -79,6 +79,15 @@ class PokemonSearchResult(BaseModel):
 # --- Sighting ---
 
 
+class ConfirmationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sighting_id: str
+    confirmed_by: str
+    confirmed_by_name: str
+    confirmed_at: datetime
+
+
 class SightingCreate(BaseModel):
     pokemon_id: int
     region: str
@@ -111,6 +120,9 @@ class SightingResponse(BaseModel):
     is_shiny: bool
     notes: str | None
     is_confirmed: bool
+    confirmed_by: str | None = None
+    confirmed_at: datetime | None = None
+    confirmer_name: str | None = None
     campaign_id: str | None = None
     pokemon_name: str | None = None
     ranger_name: str | None = None

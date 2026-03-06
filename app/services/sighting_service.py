@@ -141,3 +141,57 @@ class SightingService:
             result.append((sighting, pokemon, ranger))
 
         return result, total
+
+    def confirm_sighting(
+        self, sighting_id: str, confirming_ranger_id: str
+    ) -> tuple[Sighting, Pokemon, Ranger]:
+        confirmer = self.ranger_repo.get(confirming_ranger_id)
+        if not confirmer:
+            raise ValueError(
+                f"User '{confirming_ranger_id}' is not a Ranger. Only Rangers can confirm sightings."
+            )
+
+        sighting = self.sighting_repo.get(sighting_id)
+        if not sighting:
+            raise ValueError(f"Sighting with ID '{sighting_id}' not found")
+
+        if sighting.ranger_id == confirming_ranger_id:
+            raise ValueError(
+                f"Permission denied: You cannot confirm your own sighting. "
+                f"Sighting belongs to ranger '{sighting.ranger_id}'."
+            )
+
+        if sighting.is_confirmed:
+            raise ValueError(
+                f"Sighting '{sighting_id}' is already confirmed. "
+                "Each sighting can only be confirmed once."
+            )
+
+        sighting = self.sighting_repo.confirm_sighting_atomic(sighting_id, confirming_ranger_id)
+
+        pokemon = self.pokemon_repo.get(sighting.pokemon_id)
+        if not pokemon:
+            raise ValueError(f"Pokemon with ID '{sighting.pokemon_id}' not found")
+
+        ranger = self.ranger_repo.get(sighting.ranger_id)
+        if not ranger:
+            raise ValueError(f"Ranger with ID '{sighting.ranger_id}' not found")
+
+        return sighting, pokemon, ranger
+
+    def get_confirmation(self, sighting_id: str) -> dict | None:
+        sighting = self.sighting_repo.get(sighting_id)
+        if not sighting:
+            raise ValueError(f"Sighting with ID '{sighting_id}' not found")
+
+        if not sighting.is_confirmed:
+            return None
+
+        confirmer = self.ranger_repo.get(sighting.confirmed_by)
+
+        return {
+            "sighting_id": sighting_id,
+            "confirmed_by": sighting.confirmed_by,
+            "confirmed_by_name": confirmer.name if confirmer else None,
+            "confirmed_at": sighting.confirmed_at,
+        }

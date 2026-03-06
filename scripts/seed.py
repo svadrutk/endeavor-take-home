@@ -12,8 +12,12 @@ import os
 import random
 from datetime import datetime
 
+import structlog
+
 from app.database import Base, SessionLocal, engine
 from app.models import Pokemon, Ranger, Sighting
+
+logger = structlog.get_logger()
 
 random.seed(42)
 
@@ -332,14 +336,12 @@ def get_pokemon_for_region(all_pokemon, region_name):
 
 def generate_sightings(db, pokemon_data, rangers, num_sightings=55000):
     """Generate sighting records across all regions."""
-    print(f"Generating {num_sightings} sighting records...")
+    logger.info("sightings_generation_started", num_sightings=num_sightings)
 
-    # Distribution of sightings per region (Kanto gets the most)
     region_weights = {"Kanto": 0.30, "Johto": 0.25, "Hoenn": 0.25, "Sinnoh": 0.20}
 
     sightings = []
     for i in range(num_sightings):
-        # Pick region based on weights
         region = random.choices(
             list(region_weights.keys()),
             weights=list(region_weights.values()),
@@ -354,7 +356,6 @@ def generate_sightings(db, pokemon_data, rangers, num_sightings=55000):
 
         ranger = random.choice(rangers)
 
-        # Generate a date in 2024-2025
         year = random.choice([2024, 2025])
         month = random.randint(1, 12)
         day = random.randint(1, 28)
@@ -378,35 +379,29 @@ def generate_sightings(db, pokemon_data, rangers, num_sightings=55000):
         sightings.append(sighting)
 
         if (i + 1) % 10000 == 0:
-            print(f"  Generated {i + 1}/{num_sightings} sightings...")
+            logger.info("sightings_generation_progress", generated=i + 1, total=num_sightings)
 
     db.bulk_save_objects(sightings)
     db.commit()
-    print(f"  Inserted {len(sightings)} sighting records.")
+    logger.info("sightings_inserted", count=len(sightings))
 
 
 def seed_database():
-    print("=== PokéTracker Database Seeder ===")
-    print()
+    logger.info("seeding_started", app="poketracker")
 
-    # Create tables
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
 
-    # Check if already seeded
     existing = db.query(Pokemon).count()
     if existing > 0:
-        print("Database already contains data. Drop the database file to re-seed.")
-        print(f"  Found {existing} Pokémon species already loaded.")
+        logger.info("database_already_seeded", existing_pokemon=existing)
         return
 
-    # Load Pokémon data
-    print("Loading Pokémon species data...")
+    logger.info("loading_pokemon_data")
     pokemon_data = load_pokedex_data()
-    print(f"  Found {len(pokemon_data)} species in data file.")
+    logger.info("pokemon_data_loaded", species_count=len(pokemon_data))
 
-    # Insert Pokémon
     for entry in pokemon_data:
         pokemon = Pokemon(
             id=entry["id"],
@@ -423,10 +418,9 @@ def seed_database():
         db.add(pokemon)
 
     db.commit()
-    print(f"  Loaded {len(pokemon_data)} Pokémon species.")
+    logger.info("pokemon_species_loaded", count=len(pokemon_data))
 
-    # Create Rangers
-    print("Creating ranger profiles...")
+    logger.info("creating_rangers")
     rangers = []
     for rd in RANGER_DATA:
         ranger = Ranger(
@@ -438,22 +432,20 @@ def seed_database():
         db.flush()
         rangers.append(ranger)
     db.commit()
-    print(f"  Created {len(rangers)} ranger profiles.")
+    logger.info("rangers_created", count=len(rangers))
 
-    # Generate sightings
     generate_sightings(db, pokemon_data, rangers)
 
-    # Summary
     total_pokemon = db.query(Pokemon).count()
     total_rangers = db.query(Ranger).count()
     total_sightings = db.query(Sighting).count()
 
-    print()
-    print("=== Seeding Complete ===")
-    print(f"  Pokémon species: {total_pokemon}")
-    print(f"  Rangers: {total_rangers}")
-    print(f"  Sightings: {total_sightings}")
-    print()
+    logger.info(
+        "seeding_complete",
+        pokemon_species=total_pokemon,
+        rangers=total_rangers,
+        sightings=total_sightings,
+    )
 
     db.close()
 

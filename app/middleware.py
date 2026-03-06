@@ -22,6 +22,8 @@ class WideEventMiddleware(BaseHTTPMiddleware):
             "query_params": dict(request.query_params),
             "client_ip": request.client.host if request.client else None,
             "user_agent": request.headers.get("user-agent"),
+            "user_id": request.headers.get("X-User-ID"),
+            "user_role": None,
             **get_environment_context(),
         }
 
