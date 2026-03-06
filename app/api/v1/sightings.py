@@ -79,6 +79,7 @@ def list_sightings(
                 is_shiny=sighting.is_shiny,
                 notes=sighting.notes,
                 is_confirmed=sighting.is_confirmed,
+                campaign_id=sighting.campaign_id,
                 pokemon_name=pokemon.name if pokemon else None,
                 ranger_name=ranger.name if ranger else None,
             )
@@ -151,17 +152,25 @@ def create_sighting(
             is_shiny=new_sighting.is_shiny,
             notes=new_sighting.notes,
             is_confirmed=new_sighting.is_confirmed,
+            campaign_id=new_sighting.campaign_id,
             pokemon_name=pokemon.name,
             ranger_name=ranger.name,
         )
     except ValueError as e:
         if hasattr(request.state, "wide_event"):
+            error_type = "ValidationError"
+            if "Ranger" in str(e):
+                error_type = "AuthorizationError"
+            elif "campaign" in str(e).lower():
+                error_type = "CampaignError"
             request.state.wide_event["error"] = {
-                "type": "ValidationError" if "Ranger" not in str(e) else "AuthorizationError",
+                "type": error_type,
                 "message": str(e),
             }
         if "Ranger" in str(e):
             raise HTTPException(status_code=403, detail=str(e)) from None
+        if "campaign" in str(e).lower():
+            raise HTTPException(status_code=400, detail=str(e)) from None
         raise HTTPException(status_code=404, detail=str(e)) from None
 
 
@@ -204,6 +213,7 @@ def get_sighting(
         is_shiny=sighting.is_shiny,
         notes=sighting.notes,
         is_confirmed=sighting.is_confirmed,
+        campaign_id=sighting.campaign_id,
         pokemon_name=pokemon.name if pokemon else None,
         ranger_name=ranger.name if ranger else None,
     )
@@ -238,10 +248,15 @@ def delete_sighting(
             return MessageResponse(detail="Sighting deleted successfully")
     except ValueError as e:
         if hasattr(request.state, "wide_event"):
+            error_type = "AuthorizationError" if "Permission denied" in str(e) else "NotFoundError"
+            if "campaign" in str(e).lower() or "locked" in str(e).lower():
+                error_type = "CampaignLockError"
             request.state.wide_event["error"] = {
-                "type": "AuthorizationError" if "Permission denied" in str(e) else "NotFoundError",
+                "type": error_type,
                 "message": str(e),
             }
         if "Permission denied" in str(e):
+            raise HTTPException(status_code=403, detail=str(e)) from None
+        if "campaign" in str(e).lower() or "locked" in str(e).lower():
             raise HTTPException(status_code=403, detail=str(e)) from None
         raise HTTPException(status_code=404, detail=str(e)) from None

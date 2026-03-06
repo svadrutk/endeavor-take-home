@@ -92,6 +92,7 @@ class SightingCreate(BaseModel):
     notes: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    campaign_id: str | None = None
 
 
 class SightingResponse(BaseModel):
@@ -110,6 +111,7 @@ class SightingResponse(BaseModel):
     is_shiny: bool
     notes: str | None
     is_confirmed: bool
+    campaign_id: str | None = None
     pokemon_name: str | None = None
     ranger_name: str | None = None
 
@@ -143,3 +145,41 @@ class PaginatedPokemonSearchResult(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class CampaignCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    description: str | None = None
+    region: str = Field(..., min_length=1)
+    start_date: datetime
+    end_date: datetime
+
+
+class CampaignUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+
+
+class CampaignResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    description: str | None
+    region: str
+    start_date: datetime
+    end_date: datetime
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CampaignSummary(BaseModel):
+    campaign_id: str
+    campaign_name: str
+    total_sightings: int
+    unique_species: int
+    contributing_rangers: list[dict[str, str | int]]
+    observation_date_range: dict[str, datetime | None]

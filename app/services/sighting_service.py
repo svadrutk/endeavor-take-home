@@ -1,10 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from app.models import Pokemon, Ranger, Sighting
 from app.repositories.pokemon_repository import PokemonRepository
 from app.repositories.ranger_repository import RangerRepository
 from app.repositories.sighting_repository import SightingRepository
 from app.schemas import SightingCreate
+
+if TYPE_CHECKING:
+    from app.services.campaign_service import CampaignService
 
 
 class SightingService:
@@ -13,10 +17,12 @@ class SightingService:
         sighting_repo: SightingRepository,
         pokemon_repo: PokemonRepository,
         ranger_repo: RangerRepository,
+        campaign_service: "CampaignService | None" = None,
     ):
         self.sighting_repo = sighting_repo
         self.pokemon_repo = pokemon_repo
         self.ranger_repo = ranger_repo
+        self.campaign_service = campaign_service
 
     def create_sighting(
         self, sighting_data: SightingCreate, ranger_id: str
@@ -30,6 +36,9 @@ class SightingService:
         pokemon = self.pokemon_repo.get(sighting_data.pokemon_id)
         if not pokemon:
             raise ValueError(f"Pokemon with ID '{sighting_data.pokemon_id}' not found")
+
+        if sighting_data.campaign_id and self.campaign_service:
+            self.campaign_service.validate_sighting_campaign(sighting_data.campaign_id)
 
         sighting = self.sighting_repo.create(
             {
@@ -46,6 +55,7 @@ class SightingService:
                 "notes": sighting_data.notes,
                 "latitude": sighting_data.latitude,
                 "longitude": sighting_data.longitude,
+                "campaign_id": sighting_data.campaign_id,
             }
         )
 
@@ -83,6 +93,9 @@ class SightingService:
         sighting = self.sighting_repo.get(sighting_id)
         if not sighting:
             raise ValueError(f"Sighting with ID '{sighting_id}' not found")
+
+        if self.campaign_service:
+            self.campaign_service.check_sighting_lock(sighting)
 
         if sighting.ranger_id != ranger_id:
             raise ValueError(

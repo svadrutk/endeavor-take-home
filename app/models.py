@@ -1,10 +1,27 @@
 from datetime import UTC, datetime
+from enum import StrEnum
 
 from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.utils import generate_uuid
+
+
+class CampaignStatus(StrEnum):
+    DRAFT = "draft"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ARCHIVED = "archived"
+
+    def can_transition_to(self, next_status: "CampaignStatus") -> bool:
+        valid_transitions = {
+            CampaignStatus.DRAFT: {CampaignStatus.ACTIVE},
+            CampaignStatus.ACTIVE: {CampaignStatus.COMPLETED},
+            CampaignStatus.COMPLETED: {CampaignStatus.ARCHIVED},
+            CampaignStatus.ARCHIVED: set(),
+        }
+        return next_status in valid_transitions.get(self, set())
 
 
 class Pokemon(Base):
@@ -59,6 +76,39 @@ class Ranger(Base):
     )
 
 
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    __table_args__ = (
+        Index("idx_campaigns_status", "status"),
+        Index("idx_campaigns_region", "region"),
+        Index("idx_campaigns_dates", "start_date", "end_date"),
+    )
+
+    name: Mapped[str] = mapped_column(String(255))
+    region: Mapped[str]
+    start_date: Mapped[datetime]
+    end_date: Mapped[datetime]
+    description: Mapped[str | None] = mapped_column(Text, default=None)
+    status: Mapped[str] = mapped_column(default=CampaignStatus.DRAFT)
+    id: Mapped[str] = mapped_column(
+        primary_key=True,
+        init=False,
+        default_factory=generate_uuid,
+        insert_default=generate_uuid,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        init=False,
+        default_factory=lambda: datetime.now(UTC),
+        insert_default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        init=False,
+        default_factory=lambda: datetime.now(UTC),
+        insert_default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
 class Sighting(Base):
     __tablename__ = "sightings"
     __table_args__ = (
@@ -69,6 +119,8 @@ class Sighting(Base):
         Index("idx_sightings_ranger_date", "ranger_id", "date"),
         Index("idx_sightings_region_date", "region", "date"),
         Index("idx_sightings_is_confirmed", "is_confirmed"),
+        Index("idx_sightings_campaign_id", "campaign_id"),
+        Index("idx_sightings_campaign_date", "campaign_id", "date"),
         {"extend_existing": True},
     )
 
@@ -86,6 +138,9 @@ class Sighting(Base):
     latitude: Mapped[float | None] = mapped_column(default=None)
     longitude: Mapped[float | None] = mapped_column(default=None)
     is_confirmed: Mapped[bool] = mapped_column(default=False)
+    campaign_id: Mapped[str | None] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="SET NULL"), default=None
+    )
     id: Mapped[str] = mapped_column(
         primary_key=True,
         init=False,
