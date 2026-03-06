@@ -10,7 +10,7 @@ Usage:
 import json
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import structlog
 
@@ -362,19 +362,26 @@ def generate_sightings(db, pokemon_data, rangers, num_sightings=55000):
         hour = random.randint(0, 23)
         minute = random.randint(0, 59)
 
+        is_confirmed = random.random() < 0.3
+        confirming_ranger = (
+            random.choice([r for r in rangers if r.id != ranger.id]) if is_confirmed else None
+        )
+        sighting_date = datetime(year, month, day, hour, minute)
         sighting = Sighting(
             pokemon_id=pokemon["id"],
             ranger_id=ranger.id,
             region=region,
             route=route,
-            date=datetime(year, month, day, hour, minute),
+            date=sighting_date,
             weather=random.choice(WEATHER_OPTIONS),
             time_of_day=random.choice(TIME_OF_DAY_OPTIONS),
             height=round(random.uniform(0.1, 20.0), 2),
             weight=round(random.uniform(0.1, 999.0), 2),
             is_shiny=random.random() < 0.012,
             notes=random.choice(SIGHTING_NOTES),
-            is_confirmed=random.random() < 0.3,
+            is_confirmed=is_confirmed,
+            confirmed_by=confirming_ranger.id if confirming_ranger else None,
+            confirmed_at=sighting_date + timedelta(hours=1) if is_confirmed else None,
         )
         sightings.append(sighting)
 
