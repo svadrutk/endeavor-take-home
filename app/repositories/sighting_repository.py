@@ -216,3 +216,119 @@ class SightingRepository(BaseRepository[Sighting]):
         )
 
         return results
+
+    def get_leaderboard_stats(
+        self,
+        region: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        campaign_id: str | None = None,
+        sort_by: str = "total_sightings",
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list, int]:
+        from app.models import Ranger
+
+        query = self.db.query(
+            Sighting.ranger_id,
+            func.count(Sighting.id).label("total_sightings"),
+            func.sum(case((Sighting.is_confirmed.is_(True), 1), else_=0)).label(
+                "confirmed_sightings"
+            ),
+            func.count(func.distinct(Sighting.pokemon_id)).label("unique_species"),
+        ).join(Ranger, Sighting.ranger_id == Ranger.id)
+
+        if region:
+            query = query.filter(Sighting.region == region)
+        if date_from:
+            query = query.filter(Sighting.date >= date_from)
+        if date_to:
+            query = query.filter(Sighting.date <= date_to)
+        if campaign_id:
+            query = query.filter(Sighting.campaign_id == campaign_id)
+
+        query = query.group_by(Sighting.ranger_id)
+
+        query = query.order_by(
+            desc(sort_by),
+            desc("confirmed_sightings"),
+            desc("unique_species"),
+            Ranger.name.asc(),
+        )
+
+        total = query.count()
+
+        results = query.offset(skip).limit(limit).all()
+
+        return results, total
+
+    def get_rarest_pokemon_for_rangers(
+        self,
+        ranger_ids: list[str],
+        region: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        campaign_id: str | None = None,
+    ) -> dict[str, dict]:
+        rarity_score = (
+            case(
+                (Pokemon.is_mythical == True, 50),  # noqa: E712
+                (Pokemon.is_legendary == True, 40),  # noqa: E712
+                (Pokemon.capture_rate < 75, 30),
+                (Pokemon.capture_rate < 150, 20),
+                else_=10,
+            )
+            + case((Sighting.is_shiny == True, 5), else_=0)  # noqa: E712
+        ).label("rarity_score")
+
+        ranked = (
+            func.row_number()
+            .over(
+                partition_by=Sighting.ranger_id,
+                order_by=[
+                    desc(rarity_score),
+                    desc(Sighting.is_shiny),
+                    desc(Sighting.date),
+                    Pokemon.capture_rate.asc(),
+                    Pokemon.name.asc(),
+                ],
+            )
+            .label("rn")
+        )
+
+        query = (
+            self.db.query(
+                Sighting.ranger_id,
+                Sighting.pokemon_id,
+                Pokemon.name.label("pokemon_name"),
+                rarity_score,
+                Sighting.is_shiny,
+                Sighting.date,
+                ranked,
+            )
+            .join(Pokemon, Sighting.pokemon_id == Pokemon.id)
+            .filter(Sighting.ranger_id.in_(ranger_ids))
+        )
+
+        if region:
+            query = query.filter(Sighting.region == region)
+        if date_from:
+            query = query.filter(Sighting.date >= date_from)
+        if date_to:
+            query = query.filter(Sighting.date <= date_to)
+        if campaign_id:
+            query = query.filter(Sighting.campaign_id == campaign_id)
+
+        results = query.subquery()
+        top_rarest = self.db.query(results).filter(results.c.rn == 1).all()
+
+        return {
+            row.ranger_id: {
+                "pokemon_id": row.pokemon_id,
+                "pokemon_name": row.pokemon_name,
+                "rarity_score": row.rarity_score,
+                "is_shiny": row.is_shiny,
+                "date": row.date,
+            }
+            for row in top_rarest
+        }

@@ -11,6 +11,7 @@ from app.repositories.ranger_repository import RangerRepository
 from app.repositories.sighting_repository import SightingRepository
 from app.repositories.trainer_repository import TrainerRepository
 from app.services.campaign_service import CampaignService
+from app.services.leaderboard_service import LeaderboardService
 from app.services.pokemon_service import PokemonService
 from app.services.ranger_service import RangerService
 from app.services.region_service import RegionService
@@ -61,6 +62,12 @@ def get_region_service(db: Session = Depends(get_db)) -> RegionService:
     pokemon_repo = PokemonRepository(db)
     ranger_repo = RangerRepository(db)
     return RegionService(sighting_repo, pokemon_repo, ranger_repo)
+
+
+def get_leaderboard_service(db: Session = Depends(get_db)) -> LeaderboardService:
+    sighting_repo = SightingRepository(db)
+    ranger_repo = RangerRepository(db)
+    return LeaderboardService(sighting_repo, ranger_repo)
 
 
 def validate_uuid_format(user_id: str) -> bool:
