@@ -547,6 +547,19 @@ The solution prioritizes depth over breadth, delivering well-tested, maintainabl
 
 *This section documents all commits for reference. See PRs for detailed changes.*
 
+### [2026-03-06 15:30] - docs: remove TESTING_STRATEGY.md
+
+**What changed:**
+- Deleted TESTING_STRATEGY.md (2105 lines) - a comprehensive testing strategy document for statistical anomaly detection
+
+**Why it matters:**
+- The document was overly detailed and not aligned with the actual implementation
+- The implemented IQR-based anomaly detection is simpler than the hybrid statistical approach described in the document
+- Removes confusion between documented strategy and actual implementation
+- Keeps NOTES.md as the single source of truth for design decisions and implementation details
+
+---
+
 ### [2026-03-06 15:30] - docs: add comprehensive running and testing instructions
 
 **What changed:**
