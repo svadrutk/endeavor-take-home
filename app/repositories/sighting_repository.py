@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
 from app.models import Sighting
@@ -120,3 +121,77 @@ class SightingRepository(BaseRepository[Sighting]):
         if not sighting:
             raise ValueError(f"Sighting '{sighting_id}' not found after confirmation")
         return sighting
+
+    def get_regional_summary_stats(self, region: str) -> dict:
+        query_result = (
+            self.db.query(
+                func.count(Sighting.id).label("total"),
+                func.sum(case((Sighting.is_confirmed.is_(True), 1), else_=0)).label("confirmed"),
+                func.sum(case((Sighting.is_confirmed.is_(False), 1), else_=0)).label("unconfirmed"),
+                func.count(func.distinct(Sighting.pokemon_id)).label("unique_species"),
+            )
+            .filter(Sighting.region == region)
+            .first()
+        )
+
+        if query_result is None:
+            return {
+                "total": 0,
+                "confirmed": 0,
+                "unconfirmed": 0,
+                "unique_species": 0,
+            }
+
+        total = query_result.total if query_result.total is not None else 0  # type: ignore[attr-defined]
+        confirmed = query_result.confirmed if query_result.confirmed is not None else 0  # type: ignore[attr-defined]
+        unconfirmed = query_result.unconfirmed if query_result.unconfirmed is not None else 0  # type: ignore[attr-defined]
+        unique_species = (
+            query_result.unique_species if query_result.unique_species is not None else 0
+        )  # type: ignore[attr-defined]
+
+        return {
+            "total": total,
+            "confirmed": confirmed,
+            "unconfirmed": unconfirmed,
+            "unique_species": unique_species,
+        }
+
+    def get_top_pokemon_by_region(self, region: str, limit: int = 5) -> list:
+        return (
+            self.db.query(Sighting.pokemon_id, func.count(Sighting.id).label("count"))
+            .filter(Sighting.region == region)
+            .group_by(Sighting.pokemon_id)
+            .order_by(desc("count"))
+            .limit(limit)
+            .all()
+        )
+
+    def get_top_rangers_by_region(self, region: str, limit: int = 5) -> list:
+        return (
+            self.db.query(Sighting.ranger_id, func.count(Sighting.id).label("count"))
+            .filter(Sighting.region == region)
+            .group_by(Sighting.ranger_id)
+            .order_by(desc("count"))
+            .limit(limit)
+            .all()
+        )
+
+    def get_weather_breakdown(self, region: str) -> dict:
+        results = (
+            self.db.query(Sighting.weather, func.count(Sighting.id).label("count"))
+            .filter(Sighting.region == region)
+            .group_by(Sighting.weather)
+            .all()
+        )
+
+        return {r.weather: r.count for r in results}
+
+    def get_time_of_day_breakdown(self, region: str) -> dict:
+        results = (
+            self.db.query(Sighting.time_of_day, func.count(Sighting.id).label("count"))
+            .filter(Sighting.region == region)
+            .group_by(Sighting.time_of_day)
+            .all()
+        )
+
+        return {r.time_of_day: r.count for r in results}

@@ -13,6 +13,7 @@ from app.repositories.trainer_repository import TrainerRepository
 from app.services.campaign_service import CampaignService
 from app.services.pokemon_service import PokemonService
 from app.services.ranger_service import RangerService
+from app.services.region_service import RegionService
 from app.services.sighting_service import SightingService
 from app.services.trainer_service import TrainerService
 
@@ -53,6 +54,13 @@ def get_sighting_service(db: Session = Depends(get_db)) -> SightingService:
     ranger_repo = RangerRepository(db)
     campaign_service = get_campaign_service(db)
     return SightingService(sighting_repo, pokemon_repo, ranger_repo, campaign_service)
+
+
+def get_region_service(db: Session = Depends(get_db)) -> RegionService:
+    sighting_repo = SightingRepository(db)
+    pokemon_repo = PokemonRepository(db)
+    ranger_repo = RangerRepository(db)
+    return RegionService(sighting_repo, pokemon_repo, ranger_repo)
 
 
 def validate_uuid_format(user_id: str) -> bool:
