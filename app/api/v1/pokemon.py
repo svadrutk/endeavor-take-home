@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
-from app.api.deps import get_pokemon_service
+from app.api.deps import get_pokemon_service, get_trainer_service
 from app.schemas import (
     PaginatedPokemonResponse,
     PaginatedPokemonSearchResult,
     PokemonResponse,
     PokemonSearchResult,
 )
-from app.services import PokemonService
+from app.services import PokemonService, TrainerService
 
 router = APIRouter(prefix="/pokedex", tags=["pokemon"])
 
@@ -59,9 +59,11 @@ def search_pokemon(
 def get_pokemon(
     request: Request,
     pokemon_id: int,
-    service: PokemonService = Depends(get_pokemon_service),
+    x_user_id: str | None = Header(None, alias="X-User-ID"),
+    pokemon_service: PokemonService = Depends(get_pokemon_service),
+    trainer_service: TrainerService = Depends(get_trainer_service),
 ):
-    pokemon = service.get_pokemon(pokemon_id)
+    pokemon = pokemon_service.get_pokemon(pokemon_id)
     if not pokemon:
         if hasattr(request.state, "wide_event"):
             request.state.wide_event["error"] = {
@@ -69,9 +71,18 @@ def get_pokemon(
                 "message": f"Pokemon with ID '{pokemon_id}' not found",
             }
         raise HTTPException(status_code=404, detail=f"Pokemon with ID '{pokemon_id}' not found")
+
+    response_data = PokemonResponse.model_validate(pokemon)
+
+    if x_user_id:
+        trainer = trainer_service.get_trainer(x_user_id)
+        if trainer:
+            is_caught = trainer_service.has_caught_pokemon(x_user_id, pokemon_id)
+            response_data.is_caught = is_caught
+
     if hasattr(request.state, "wide_event"):
         request.state.wide_event["pokemon"] = {"id": pokemon.id, "name": pokemon.name}
-    return PokemonResponse.model_validate(pokemon)
+    return response_data
 
 
 @router.get("/region/{region_name_or_generation}")

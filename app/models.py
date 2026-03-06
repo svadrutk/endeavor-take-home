@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -169,3 +169,36 @@ class Sighting(Base):
     confirming_ranger: Mapped["Ranger | None"] = relationship(
         "Ranger", foreign_keys=[confirmed_by], init=False, lazy="select"
     )
+
+
+class TrainerCatch(Base):
+    __tablename__ = "trainer_catches"
+    __table_args__ = (
+        PrimaryKeyConstraint("trainer_id", "pokemon_id"),
+        CheckConstraint(
+            "pokemon_id >= 1 AND pokemon_id <= 493",
+            name="ck_pokemon_id_valid_range",
+        ),
+        Index("idx_trainer_catches_trainer_id", "trainer_id"),
+        Index("idx_trainer_catches_pokemon_id", "pokemon_id"),
+        Index("idx_trainer_catches_caught_at", "caught_at"),
+        Index("idx_trainer_catches_trainer_date", "trainer_id", "caught_at"),
+    )
+
+    trainer_id: Mapped[str] = mapped_column(
+        ForeignKey("trainers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    pokemon_id: Mapped[int] = mapped_column(
+        ForeignKey("pokemon.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    caught_at: Mapped[datetime] = mapped_column(
+        init=False,
+        default_factory=lambda: datetime.now(UTC),
+        insert_default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    trainer: Mapped["Trainer"] = relationship("Trainer", init=False, lazy="joined")
+    pokemon: Mapped["Pokemon"] = relationship("Pokemon", init=False, lazy="joined")
