@@ -38,21 +38,7 @@ If commit message provided via $ARGUMENTS, use it. Otherwise:
 - Multiple file types → use most significant change type
 - Scope from directory/module affected (e.g., `api`, `db`, `logging`)
 
-### Step 3: Commit the Changes
-
-Execute the commit:
-```bash
-git commit -m "[generated or provided message]"
-```
-
-### Step 4: Get Commit Info
-
-After successful commit, gather:
-- Short commit hash: `git rev-parse --short HEAD`
-- Full commit hash: `git rev-parse HEAD`
-- Commit message: From the commit just created
-
-### Step 5: Analyze Changes for NOTES.md
+### Step 3: Analyze Changes for NOTES.md
 
 Analyze the diff to generate human-readable summary:
 
@@ -72,13 +58,13 @@ Analyze the diff to generate human-readable summary:
 - Consider the broader context from commit message and diff
 - Write in plain language, avoiding jargon where possible
 
-### Step 6: Update NOTES.md
+### Step 4: Update NOTES.md
 
 Add a new entry to NOTES.md under "## Commit History":
 
 **Format:**
 ```markdown
-### [short-hash] - [Description from commit message]
+### [placeholder] - [Description from commit message]
 
 **What changed:**
 [Auto-generated from diff analysis - specific changes in plain language]
@@ -89,13 +75,15 @@ Add a new entry to NOTES.md under "## Commit History":
 ---
 ```
 
+**Important:** Use `[placeholder]` for the commit hash since we haven't committed yet. We'll update it after the commit.
+
 **Insert location:** Right after the "## Commit History" header, before any existing commits.
 
 **Example:**
 ```markdown
 ## Commit History
 
-### a1b2c3d - Add new endpoint for Pokemon stats
+### [placeholder] - Add new endpoint for Pokemon stats
 
 **What changed:**
 Added a new GET /pokemon/{id}/stats endpoint that returns base stats, EVs, and IVs for a Pokemon.
@@ -106,13 +94,32 @@ Researchers can now query detailed stat information without fetching the full Po
 ---
 ```
 
-### Step 7: Commit NOTES.md Update
+### Step 5: Stage and Commit All Changes
 
-After updating NOTES.md:
+Stage NOTES.md along with other changes, then commit:
 ```bash
 git add NOTES.md
-git commit -m "docs: update NOTES.md with commit [short-hash]"
+git commit -m "[generated or provided message]"
 ```
+
+### Step 6: Update Commit Hash in NOTES.md
+
+After successful commit, get the short commit hash and update the placeholder in NOTES.md:
+```bash
+git rev-parse --short HEAD
+```
+
+Then replace `[placeholder]` in NOTES.md with the actual commit hash.
+
+### Step 7: Amend Commit with Updated NOTES.md
+
+Stage and amend the commit with the updated NOTES.md:
+```bash
+git add NOTES.md
+git commit --amend --no-edit
+```
+
+**Note:** Only use `--amend` immediately after creating the commit (before pushing). This is safe because the commit was just created and hasn't been pushed yet.
 
 ### Step 8: Report Success
 
@@ -124,9 +131,10 @@ Output to user:
 
 ## Success Criteria
 
-- [ ] Changes committed with conventional commit format
-- [ ] NOTES.md updated with new entry
-- [ ] NOTES.md changes committed
+- [ ] NOTES.md updated with new entry (using placeholder)
+- [ ] All changes (including NOTES.md) committed together with conventional commit format
+- [ ] Commit hash updated in NOTES.md
+- [ ] Commit amended with final NOTES.md
 - [ ] NOTES.md entry has complete "What changed" and "Why it matters"
 - [ ] No user input required during process
 
