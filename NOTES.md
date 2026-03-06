@@ -547,6 +547,20 @@ The solution prioritizes depth over breadth, delivering well-tested, maintainabl
 
 *This section documents all commits for reference. See PRs for detailed changes.*
 
+### [2026-03-06 15:30] - docs: add comprehensive running and testing instructions
+
+**What changed:**
+- Added detailed "Running & Testing" section to README.md with prerequisites, installation, database setup, server startup, test execution, code quality checks, and manual testing instructions
+- Fixed test_endpoints.sh script: added error handling for duplicate user creation, corrected field names (shiny → is_shiny, location → route), added missing date field, fixed campaign transition endpoint, added authentication headers where required
+
+**Why it matters:**
+- Provides clear, step-by-step instructions for new users to run and test the project
+- Removes outdated "broken seed script" note since it has been fixed
+- Makes the manual testing script more robust and aligned with current API requirements
+- Improves developer experience by documenting all available testing and quality check tools
+
+---
+
 ### PR #4: Peer Confirmation System
 
 **Commits:**

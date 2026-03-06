@@ -9,9 +9,23 @@ echo ""
 
 # Create test users
 echo "Creating test users..."
-TRAINER_ID=$(curl -s -X POST $BASE_URL/trainers/ -H "Content-Type: application/json" -d '{"name": "TestTrainer123", "email": "testtrainer123@example.com"}' | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])")
-RANGER_ID=$(curl -s -X POST $BASE_URL/rangers/ -H "Content-Type: application/json" -d '{"name": "TestRanger123", "email": "testranger123@example.com", "specialization": "Fire"}' | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])")
-RANGER_ID2=$(curl -s -X POST $BASE_URL/rangers/ -H "Content-Type: application/json" -d '{"name": "TestRanger456", "email": "testranger456@example.com", "specialization": "Water"}' | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])")
+TRAINER_RESPONSE=$(curl -s -X POST $BASE_URL/trainers/ -H "Content-Type: application/json" -d '{"name": "TestTrainer123", "email": "testtrainer123@example.com"}')
+TRAINER_ID=$(echo "$TRAINER_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('id', ''))")
+if [ -z "$TRAINER_ID" ]; then
+    TRAINER_ID=$(curl -s "$BASE_URL/users/lookup?name=TestTrainer123" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+fi
+
+RANGER_RESPONSE=$(curl -s -X POST $BASE_URL/rangers/ -H "Content-Type: application/json" -d '{"name": "TestRanger123", "email": "testranger123@example.com", "specialization": "Fire"}')
+RANGER_ID=$(echo "$RANGER_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('id', ''))")
+if [ -z "$RANGER_ID" ]; then
+    RANGER_ID=$(curl -s "$BASE_URL/users/lookup?name=TestRanger123" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+fi
+
+RANGER2_RESPONSE=$(curl -s -X POST $BASE_URL/rangers/ -H "Content-Type: application/json" -d '{"name": "TestRanger456", "email": "testranger456@example.com", "specialization": "Water"}')
+RANGER_ID2=$(echo "$RANGER2_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('id', ''))")
+if [ -z "$RANGER_ID2" ]; then
+    RANGER_ID2=$(curl -s "$BASE_URL/users/lookup?name=TestRanger456" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+fi
 
 echo "Trainer ID: $TRAINER_ID"
 echo "Ranger ID: $RANGER_ID"
@@ -83,9 +97,10 @@ SIGHTING_RESPONSE=$(curl -s -X POST $BASE_URL/sightings/ -H "Content-Type: appli
   "pokemon_id": 25,
   "height": 0.4,
   "weight": 6.0,
-  "shiny": false,
+  "is_shiny": false,
   "region": "Kanto",
-  "location": "Route 1",
+  "route": "Route 1",
+  "date": "2026-03-06T12:00:00",
   "weather": "sunny",
   "time_of_day": "day",
   "notes": "Test sighting"
@@ -123,7 +138,7 @@ echo "=========================================="
 echo ""
 
 echo "6.1 POST /campaigns - Create campaign"
-CAMPAIGN_RESPONSE=$(curl -s -X POST $BASE_URL/campaigns/ -H "Content-Type: application/json" -d '{
+CAMPAIGN_RESPONSE=$(curl -s -X POST $BASE_URL/campaigns/ -H "Content-Type: application/json" -H "X-User-ID: $RANGER_ID" -d '{
   "name": "Kanto Survey 2026",
   "description": "Annual Kanto region survey",
   "region": "Kanto",
@@ -144,7 +159,7 @@ curl -s -X PATCH "$BASE_URL/campaigns/$CAMPAIGN_ID" -H "Content-Type: applicatio
 echo ""
 
 echo "6.4 POST /campaigns/{campaign_id}/transition - Move to active"
-curl -s -X POST "$BASE_URL/campaigns/$CAMPAIGN_ID/transition" -H "Content-Type: application/json" -d '{"status": "active"}' | python3 -m json.tool
+curl -s -X POST "$BASE_URL/campaigns/$CAMPAIGN_ID/transition?new_status=active" | python3 -m json.tool
 echo ""
 
 echo "6.5 GET /campaigns/{campaign_id}/summary"
@@ -161,9 +176,10 @@ SIGHTING2_RESPONSE=$(curl -s -X POST $BASE_URL/sightings/ -H "Content-Type: appl
   "pokemon_id": 1,
   "height": 0.7,
   "weight": 6.9,
-  "shiny": false,
+  "is_shiny": false,
   "region": "Kanto",
-  "location": "Pallet Town",
+  "route": "Pallet Town",
+  "date": "2026-03-06T12:00:00",
   "weather": "clear",
   "time_of_day": "morning",
   "notes": "Test for confirmation"
@@ -199,7 +215,7 @@ echo "=========================================="
 echo ""
 
 echo "9.1 GET /regions/{region_name}/analysis"
-curl -s "$BASE_URL/regions/Kanto/analysis" | python3 -m json.tool
+curl -s "$BASE_URL/regions/Kanto/analysis" -H "X-User-ID: $RANGER_ID" | python3 -m json.tool
 echo ""
 
 echo "=========================================="
@@ -208,7 +224,7 @@ echo "=========================================="
 echo ""
 
 echo "10.1 GET /leaderboard (if implemented)"
-curl -s "$BASE_URL/leaderboard" 2>&1 | python3 -m json.tool || echo "Endpoint not found or error"
+curl -sL "$BASE_URL/leaderboard" | python3 -m json.tool || echo "Endpoint not found or error"
 echo ""
 
 echo "=========================================="

@@ -11,36 +11,76 @@
 - **uv** to manage the Python environment
 - Tests: **pytest**
 
-## Quick Start
+## Running & Testing
+
+### Prerequisites
+
+- **Python 3.12+**
+- **[uv](https://docs.astral.sh/uv/)** for dependency management (recommended)
+
+### Installation
 
 ```bash
 # Install dependencies
 uv sync
-
-# Run the seed script (note: it's currently broken — see Initial Task)
-uv run python -m scripts.seed
-
-# Start the dev server
-uv run uvicorn app.main:app --reload
-
-# Run tests
-uv run pytest
 ```
 
-## Situation
+### 1. Database Setup (Seeding)
 
-Congratulations! You've just moved up to Goldenrod City, where you have been hired as a senior backend engineer at the **Pokémon Research Institute**!
+The project includes a seed script to prepopulate the SQLite database with Pokémon species and historical sighting records.
 
-The institute coordinates field research across multiple regions. Professor Oak has been leading an effort to build the next-generation of the **Pokédex** -- that allows field researchers to log Pokémon sightings, organize research campaigns, and query aggregated findings.
-This is in addition to its existing capabilities of viewing Pokémon information, location, and if the current user has captured the Pokémon (n.b. a Trainer/Ranger can see all Pokémon in the Pokédex, regardless of whether they've actually encountered that Pokémon before -- a notable distinction if you are familiar with the games).
+```bash
+# Run the seed script
+uv run python -m scripts.seed
+```
 
-The Pokédex serves two audiences: **Pokémon Trainers** use it to browse species information and keep track of the Pokémon they've caught, while **Pokémon Rangers** use it for field research, logging sightings and contributing to regional analysis. Both audiences share the same API, and the system needs to know *who* is making a request in order to personalize responses and enforce permissions.
+### 2. Running the Development Server
 
-Professor Oak put his colleague Professor Elm in charge of development, but he contracted the project out to a consultancy rather than building out his own team. While it works, the codebase has grown to have some rough edges. The Pokémon Rangers (i.e. field researchers) have also reported that **certain endpoints have become noticeably slow** as the dataset has grown (the database now contains over 50,000 sighting records across dozens of regions). Since Prof. Elm has hired you as a full-time dev, he needs your help to **clean up the existing code where you see fit**, **address the performance concerns**, and **implement several new features** that the Rangers and Trainers have been requesting.
+The API uses **FastAPI** and can be started with **uvicorn**:
 
-The API is built with **Python**, **FastAPI**, and **SQLite** (via SQLAlchemy). A broken seed script is provided whose goal is to pre-populate the database with Pokémon species reference data and a large volume of historical sighting records. Since the script hasn't been used since the early days of the Pokédex, it has fallen out of compatibility with the current codebase and needs to be touched up to successfully seed the database.
+```bash
+# Start the dev server with auto-reload
+uv run uvicorn app.main:app --reload
+```
+
+The API will be available at `http://localhost:8000`. You can access the interactive Swagger documentation at `http://localhost:8000/docs`.
+
+### 3. Running Tests
+
+The project uses **pytest** for testing and includes coverage reporting.
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with a specific pattern
+uv run pytest -k "test_name"
+
+# Run tests and generate HTML coverage report
+uv run pytest --cov-report=html
+```
+
+Coverage reports are generated in the `htmlcov/` directory.
+
+### 4. Code Quality & Formatting
+
+We use **Ruff** for linting and formatting, and **ty** for type checking.
+
+```bash
+# Run all quality checks (lint, format check, type check, tests)
+./scripts/check.sh
+
+### 5. Manual Testing
+
+We provide a comprehensive bash script that tests all API endpoints against the requirements.
+
+```bash
+# Ensure the server is running in another terminal
+./test_endpoints.sh
+```
 
 ---
+
 
 ## Domain Concepts
 
