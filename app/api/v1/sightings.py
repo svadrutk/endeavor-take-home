@@ -1,11 +1,112 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.schemas import MessageResponse, SightingCreate, SightingResponse
+from app.schemas import MessageResponse, PaginatedSightingResponse, SightingCreate, SightingResponse
 from app.services import SightingService
 
 router = APIRouter(prefix="/sightings", tags=["sightings"])
+
+
+@router.get("/", response_model=PaginatedSightingResponse)
+def list_sightings(
+    request: Request,
+    db: Session = Depends(get_db),
+    pokemon_id: int | None = Query(None, description="Filter by Pokemon species ID"),
+    region: str | None = Query(None, description="Filter by region name"),
+    weather: str | None = Query(None, description="Filter by weather condition"),
+    time_of_day: str | None = Query(None, description="Filter by time of day"),
+    ranger_id: str | None = Query(None, description="Filter by Ranger UUID"),
+    date_from: datetime | None = Query(
+        None, description="Filter sightings from this date (inclusive)"
+    ),
+    date_to: datetime | None = Query(None, description="Filter sightings to this date (inclusive)"),
+    is_confirmed: bool | None = Query(None, description="Filter by confirmation status"),
+    limit: int = Query(50, ge=1, le=200, description="Number of results per page"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+):
+    """
+    List sightings with optional filters and pagination.
+
+    Supports filtering by:
+    - pokemon_id: Pokemon species ID
+    - region: Region name (e.g., "Kanto", "Johto")
+    - weather: Weather condition (sunny, rainy, snowy, sandstorm, foggy, clear)
+    - time_of_day: Time of day (morning, day, night)
+    - ranger_id: Ranger UUID
+    - date_from: Start of date range (inclusive)
+    - date_to: End of date range (inclusive)
+    - is_confirmed: Confirmation status
+
+    Returns paginated results with total count.
+    """
+    if date_from and date_to and date_from > date_to:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "ValidationError",
+                "message": "date_from must be before or equal to date_to",
+            }
+        raise HTTPException(status_code=400, detail="date_from must be before or equal to date_to")
+
+    service = SightingService(db)
+
+    sightings_data, total = service.filter_sightings(
+        pokemon_id=pokemon_id,
+        region=region,
+        weather=weather,
+        time_of_day=time_of_day,
+        ranger_id=ranger_id,
+        date_from=date_from,
+        date_to=date_to,
+        is_confirmed=is_confirmed,
+        skip=offset,
+        limit=limit,
+    )
+
+    results = []
+    for sighting, pokemon, ranger in sightings_data:
+        results.append(
+            SightingResponse(
+                id=sighting.id,
+                pokemon_id=sighting.pokemon_id,
+                ranger_id=sighting.ranger_id,
+                region=sighting.region,
+                route=sighting.route,
+                date=sighting.date,
+                weather=sighting.weather,
+                time_of_day=sighting.time_of_day,
+                height=sighting.height,
+                weight=sighting.weight,
+                is_shiny=sighting.is_shiny,
+                notes=sighting.notes,
+                is_confirmed=sighting.is_confirmed,
+                pokemon_name=pokemon.name if pokemon else None,
+                ranger_name=ranger.name if ranger else None,
+            )
+        )
+
+    if hasattr(request.state, "wide_event"):
+        request.state.wide_event["filter_params"] = {
+            "pokemon_id": pokemon_id,
+            "region": region,
+            "weather": weather,
+            "time_of_day": time_of_day,
+            "ranger_id": ranger_id,
+            "date_from": str(date_from) if date_from else None,
+            "date_to": str(date_to) if date_to else None,
+            "is_confirmed": is_confirmed,
+        }
+        request.state.wide_event["results_count"] = len(results)
+        request.state.wide_event["total"] = total
+
+    return PaginatedSightingResponse(
+        results=results,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/", response_model=SightingResponse, status_code=200)
