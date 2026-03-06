@@ -2,6 +2,16 @@
 
 ## Commit History
 
+### ec19b5d - Extract endpoints into modular v1 router structure
+
+**What changed:**
+Extracted all API endpoints from app/main.py into a modular structure under app/api/v1/. Created separate modules for each resource (pokemon.py, rangers.py, sightings.py, trainers.py, users.py) with a central router that includes all sub-routers. Moved database dependency injection to app/api/deps.py. Updated all test files to use the new /v1/ prefix for API endpoints.
+
+**Why it matters:**
+Reduces main.py from ~500 lines to ~60 lines, making it easier to navigate and maintain. Follows FastAPI best practices for project structure with clear separation of concerns. Enables future API versioning (v2, v3, etc.) without breaking existing clients. Each resource module is now isolated, making testing and debugging more straightforward. All endpoints now accessible under /v1/ prefix, providing clear API versioning from the start.
+
+---
+
 ### ca21756 - Add pre-commit hooks and modernize Python syntax
 
 **What changed:**
