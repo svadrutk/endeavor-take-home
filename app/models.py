@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -121,6 +121,16 @@ class Sighting(Base):
         Index("idx_sightings_is_confirmed", "is_confirmed"),
         Index("idx_sightings_campaign_id", "campaign_id"),
         Index("idx_sightings_campaign_date", "campaign_id", "date"),
+        Index("idx_sightings_confirmed_by", "confirmed_by"),
+        Index("idx_sightings_confirmation_status", "is_confirmed", "confirmed_at"),
+        CheckConstraint(
+            "(is_confirmed = FALSE) OR (confirmed_by IS NOT NULL)",
+            name="ck_sighting_confirmation_integrity",
+        ),
+        CheckConstraint(
+            "(is_confirmed = FALSE) OR (confirmed_at IS NOT NULL)",
+            name="ck_sighting_confirmation_timestamp",
+        ),
         {"extend_existing": True},
     )
 
@@ -138,6 +148,10 @@ class Sighting(Base):
     latitude: Mapped[float | None] = mapped_column(default=None)
     longitude: Mapped[float | None] = mapped_column(default=None)
     is_confirmed: Mapped[bool] = mapped_column(default=False)
+    confirmed_by: Mapped[str | None] = mapped_column(
+        ForeignKey("rangers.id", ondelete="SET NULL"), default=None, nullable=True
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(default=None)
     campaign_id: Mapped[str | None] = mapped_column(
         ForeignKey("campaigns.id", ondelete="SET NULL"), default=None
     )
@@ -148,4 +162,10 @@ class Sighting(Base):
         insert_default=generate_uuid,
     )
 
-    pokemon: Mapped["Pokemon"] = relationship(init=False, lazy="select")
+    pokemon: Mapped["Pokemon"] = relationship("Pokemon", init=False, lazy="select")
+    ranger: Mapped["Ranger"] = relationship(
+        "Ranger", foreign_keys=[ranger_id], init=False, lazy="select"
+    )
+    confirming_ranger: Mapped["Ranger | None"] = relationship(
+        "Ranger", foreign_keys=[confirmed_by], init=False, lazy="select"
+    )

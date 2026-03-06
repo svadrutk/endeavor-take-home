@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -86,3 +86,37 @@ class SightingRepository(BaseRepository[Sighting]):
             self.db.commit()
             return True
         return False
+
+    def confirm_sighting_atomic(self, sighting_id: str, confirmer_id: str) -> Sighting:
+        result = (
+            self.db.query(Sighting)
+            .filter(
+                Sighting.id == sighting_id,
+                Sighting.is_confirmed.is_(False),
+                Sighting.ranger_id != confirmer_id,
+            )
+            .update(
+                {
+                    "is_confirmed": True,
+                    "confirmed_by": confirmer_id,
+                    "confirmed_at": datetime.now(UTC),
+                },
+                synchronize_session=False,
+            )
+        )
+
+        self.db.commit()
+
+        if result == 0:
+            sighting = self.get(sighting_id)
+            if not sighting:
+                raise ValueError(f"Sighting '{sighting_id}' not found")
+            if sighting.is_confirmed:
+                raise ValueError(f"Sighting '{sighting_id}' already confirmed")
+            if sighting.ranger_id == confirmer_id:
+                raise ValueError("Cannot confirm own sighting")
+
+        sighting = self.get(sighting_id)
+        if not sighting:
+            raise ValueError(f"Sighting '{sighting_id}' not found after confirmation")
+        return sighting

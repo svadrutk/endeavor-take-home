@@ -1,9 +1,15 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
-from app.api.deps import get_sighting_service
-from app.schemas import MessageResponse, PaginatedSightingResponse, SightingCreate, SightingResponse
+from app.api.deps import get_sighting_service, require_ranger
+from app.schemas import (
+    ConfirmationResponse,
+    MessageResponse,
+    PaginatedSightingResponse,
+    SightingCreate,
+    SightingResponse,
+)
 from app.services import SightingService
 
 router = APIRouter(prefix="/sightings", tags=["sightings"])
@@ -259,4 +265,92 @@ def delete_sighting(
             raise HTTPException(status_code=403, detail=str(e)) from None
         if "campaign" in str(e).lower() or "locked" in str(e).lower():
             raise HTTPException(status_code=403, detail=str(e)) from None
+        raise HTTPException(status_code=404, detail=str(e)) from None
+
+
+@router.post("/{sighting_id}/confirm", response_model=SightingResponse)
+def confirm_sighting(
+    request: Request,
+    sighting_id: str,
+    current_user: dict = Depends(require_ranger),
+    service: SightingService = Depends(get_sighting_service),
+):
+    try:
+        sighting, pokemon, ranger = service.confirm_sighting(
+            sighting_id=sighting_id, confirming_ranger_id=current_user["id"]
+        )
+
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["confirmation"] = {
+                "sighting_id": sighting_id,
+                "confirmed_by": current_user["id"],
+                "confirmer_name": current_user["name"],
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+
+        return SightingResponse(
+            id=sighting.id,
+            pokemon_id=sighting.pokemon_id,
+            pokemon_name=pokemon.name,
+            ranger_id=sighting.ranger_id,
+            ranger_name=ranger.name,
+            region=sighting.region,
+            route=sighting.route,
+            date=sighting.date,
+            weather=sighting.weather,
+            time_of_day=sighting.time_of_day,
+            height=sighting.height,
+            weight=sighting.weight,
+            is_shiny=sighting.is_shiny,
+            notes=sighting.notes,
+            is_confirmed=sighting.is_confirmed,
+            confirmed_by=sighting.confirmed_by,
+            confirmed_at=sighting.confirmed_at,
+            confirmer_name=current_user["name"],
+            campaign_id=sighting.campaign_id,
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if hasattr(request.state, "wide_event"):
+            error_type = "ValidationError"
+            if "own sighting" in error_msg.lower():
+                error_type = "SelfConfirmationError"
+            elif "already confirmed" in error_msg.lower():
+                error_type = "DuplicateConfirmationError"
+            request.state.wide_event["error"] = {
+                "type": error_type,
+                "message": error_msg,
+            }
+
+        if "own sighting" in error_msg.lower():
+            raise HTTPException(status_code=403, detail=error_msg) from None
+        if "already confirmed" in error_msg.lower():
+            raise HTTPException(status_code=409, detail=error_msg) from None
+        if "Ranger" in error_msg:
+            raise HTTPException(status_code=403, detail=error_msg) from None
+        raise HTTPException(status_code=404, detail=error_msg) from None
+
+
+@router.get("/{sighting_id}/confirmation", response_model=ConfirmationResponse)
+def get_confirmation(
+    request: Request,
+    sighting_id: str,
+    service: SightingService = Depends(get_sighting_service),
+):
+    try:
+        confirmation = service.get_confirmation(sighting_id)
+
+        if not confirmation:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sighting '{sighting_id}' has not been confirmed yet",
+            )
+
+        return ConfirmationResponse(**confirmation)
+    except ValueError as e:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["error"] = {
+                "type": "NotFoundError",
+                "message": str(e),
+            }
         raise HTTPException(status_code=404, detail=str(e)) from None
