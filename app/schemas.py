@@ -242,6 +242,7 @@ class AnomalySpecies(BaseModel):
     expected_count: float
     deviation: str
     deviation_percentage: float
+    is_native: bool
 
 
 class RegionalAnalysis(BaseModel):

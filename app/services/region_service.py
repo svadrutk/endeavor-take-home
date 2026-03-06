@@ -1,7 +1,7 @@
 from app.repositories.pokemon_repository import PokemonRepository
 from app.repositories.ranger_repository import RangerRepository
 from app.repositories.sighting_repository import SightingRepository
-from app.services.pokemon_service import VALID_REGIONS
+from app.services.pokemon_service import REGION_TO_GENERATION, VALID_REGIONS
 
 
 class RegionService:
@@ -26,38 +26,49 @@ class RegionService:
             return "uncommon"
         return "common"
 
-    def _detect_anomalies_iqr(self, species_counts: list[dict]) -> list[dict]:
+    def _detect_anomalies_iqr(self, species_counts: list[dict], region: str) -> list[dict]:
         if len(species_counts) < 2:
             return []
 
-        counts = sorted([s["count"] for s in species_counts])
-        q1 = counts[len(counts) // 4]
-        q3 = counts[3 * len(counts) // 4]
-        iqr = q3 - q1
+        native_generation = REGION_TO_GENERATION.get(region.lower())
 
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
+        native_species = [s for s in species_counts if s["generation"] == native_generation]
+        non_native_species = [s for s in species_counts if s["generation"] != native_generation]
 
         anomalies = []
-        for species in species_counts:
-            if species["count"] < lower_bound or species["count"] > upper_bound:
-                expected = (q1 + q3) / 2
-                deviation = "low" if species["count"] < lower_bound else "high"
-                deviation_percentage = (
-                    ((species["count"] - expected) / expected * 100) if expected > 0 else 0
-                )
 
-                anomalies.append(
-                    {
-                        "pokemon_id": species["pokemon_id"],
-                        "pokemon_name": species["pokemon_name"],
-                        "rarity_tier": species["rarity_tier"],
-                        "sighting_count": species["count"],
-                        "expected_count": expected,
-                        "deviation": deviation,
-                        "deviation_percentage": deviation_percentage,
-                    }
-                )
+        for group in [native_species, non_native_species]:
+            if len(group) < 2:
+                continue
+
+            counts = sorted([s["count"] for s in group])
+            q1 = counts[len(counts) // 4]
+            q3 = counts[3 * len(counts) // 4]
+            iqr = q3 - q1
+
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            expected = (q1 + q3) / 2
+
+            for species in group:
+                if species["count"] < lower_bound or species["count"] > upper_bound:
+                    deviation = "low" if species["count"] < lower_bound else "high"
+                    deviation_percentage = (
+                        ((species["count"] - expected) / expected * 100) if expected > 0 else 0
+                    )
+
+                    anomalies.append(
+                        {
+                            "pokemon_id": species["pokemon_id"],
+                            "pokemon_name": species["pokemon_name"],
+                            "rarity_tier": species["rarity_tier"],
+                            "sighting_count": species["count"],
+                            "expected_count": expected,
+                            "deviation": deviation,
+                            "deviation_percentage": deviation_percentage,
+                            "is_native": species["generation"] == native_generation,
+                        }
+                    )
 
         return anomalies
 
@@ -158,6 +169,7 @@ class RegionService:
                     "pokemon_name": result.name,
                     "count": result.total_count,
                     "rarity_tier": rarity_tier,
+                    "generation": result.generation,
                 }
             )
 
@@ -178,7 +190,7 @@ class RegionService:
         all_anomalies = []
         for _tier, species_list in tier_data.items():
             if len(species_list) >= 2:
-                anomalies = self._detect_anomalies_iqr(species_list)
+                anomalies = self._detect_anomalies_iqr(species_list, region_title)
                 all_anomalies.extend(anomalies)
 
         return {

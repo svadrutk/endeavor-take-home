@@ -204,6 +204,7 @@ class SightingRepository(BaseRepository[Sighting]):
                 Pokemon.capture_rate,
                 Pokemon.is_legendary,
                 Pokemon.is_mythical,
+                Pokemon.generation,
                 func.count(Sighting.id).label("total_count"),
                 func.sum(case((Sighting.is_confirmed.is_(True), 1), else_=0)).label(
                     "confirmed_count"

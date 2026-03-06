@@ -547,7 +547,22 @@ The solution prioritizes depth over breadth, delivering well-tested, maintainabl
 
 *This section documents all commits for reference. See PRs for detailed changes.*
 
-### [2026-03-06 15:30] - docs: remove TESTING_STRATEGY.md
+### [2026-03-06 16:04] - fix(analysis): separate native vs non-native Pokemon in anomaly detection
+
+**What changed:**
+- Modified `sighting_repository.py` to include Pokemon generation in regional analysis query
+- Updated `region_service.py` to separate native and non-native Pokemon when detecting anomalies
+- Added `is_native` field to anomaly response schema in `schemas.py`
+- Changed anomaly detection algorithm to calculate separate IQR baselines for native vs non-native species
+
+**Why it matters:**
+- Eliminates 54 false positives where Hoenn-native Pokemon were incorrectly flagged as anomalies
+- Native Pokemon (e.g., Treecko, Torchic, Mudkip) now have appropriate expected counts based on other native species
+- Non-native Pokemon are compared against other non-native species, detecting actual anomalies like Honchkrow (16 vs 7 expected)
+- Makes anomaly detection results interpretable and actionable for researchers
+- Reduces total anomalies from 54 to 7 meaningful outliers across all rarity tiers
+
+---
 
 **What changed:**
 - Deleted TESTING_STRATEGY.md (2105 lines) - a comprehensive testing strategy document for statistical anomaly detection
