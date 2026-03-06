@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Generator
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -64,6 +64,7 @@ def validate_uuid_format(user_id: str) -> bool:
 
 
 def get_current_user(
+    request: Request,
     x_user_id: str | None = Header(None, alias="X-User-ID"),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -81,10 +82,14 @@ def get_current_user(
 
     ranger = ranger_repo.get(x_user_id)
     if ranger:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["user_role"] = "ranger"
         return {"id": x_user_id, "role": "ranger", "name": ranger.name}
 
     trainer = trainer_repo.get(x_user_id)
     if trainer:
+        if hasattr(request.state, "wide_event"):
+            request.state.wide_event["user_role"] = "trainer"
         return {"id": x_user_id, "role": "trainer", "name": trainer.name}
 
     raise HTTPException(status_code=401, detail="Invalid user credentials")
