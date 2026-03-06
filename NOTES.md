@@ -5,10 +5,12 @@
 ### 4d937e7 - Remove logging from repositories and improve environment context
 
 **What changed:**
-[TO BE FILLED]
+- Removed all logging statements from repository layer (base_repository, pokemon_repository, ranger_repository, sighting_repository, trainer_repository)
+- Added dynamic git commit hash detection in logging_config.py
+- Cleaned up NOTES.md to focus on commit history only
 
 **Why it matters:**
-[TO BE FILLED]
+Repositories should focus purely on data access, not logging. With the wide events pattern, all logging is now centralized in middleware. The dynamic git commit hash detection means you don't need to manually set COMMIT_SHA environment variable - it's automatically detected from the git repository.
 
 ---
 
