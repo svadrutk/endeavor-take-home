@@ -2,6 +2,16 @@
 
 ## Commit History
 
+### 4d937e7 - Remove logging from repositories and improve environment context
+
+**What changed:**
+[TO BE FILLED]
+
+**Why it matters:**
+[TO BE FILLED]
+
+---
+
 ### a4afa66 - Performance Improvements & Deprecation Fixes
 
 **What changed:**
