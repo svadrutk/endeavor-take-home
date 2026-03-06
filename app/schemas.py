@@ -219,3 +219,32 @@ class RegionalSummary(BaseModel):
     top_rangers: list[TopRanger]
     weather_breakdown: dict[str, int]
     time_of_day_breakdown: dict[str, int]
+
+
+class SpeciesSighting(BaseModel):
+    id: int
+    name: str
+    count: int
+
+
+class RarityTierBreakdown(BaseModel):
+    sighting_count: int
+    percentage: float
+    species: list[SpeciesSighting]
+
+
+class AnomalySpecies(BaseModel):
+    pokemon_id: int
+    pokemon_name: str
+    rarity_tier: str
+    sighting_count: int
+    expected_count: float
+    deviation: str
+    deviation_percentage: float
+
+
+class RegionalAnalysis(BaseModel):
+    region: str
+    total_sightings: int
+    rarity_breakdown: dict[str, RarityTierBreakdown]
+    anomalies: list[AnomalySpecies]

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
-from app.models import Sighting
+from app.models import Pokemon, Sighting
 from app.repositories.base_repository import BaseRepository
 
 
@@ -195,3 +195,24 @@ class SightingRepository(BaseRepository[Sighting]):
         )
 
         return {r.time_of_day: r.count for r in results}
+
+    def get_sightings_by_rarity_tier(self, region: str) -> list:
+        results = (
+            self.db.query(
+                Sighting.pokemon_id,
+                Pokemon.name,
+                Pokemon.capture_rate,
+                Pokemon.is_legendary,
+                Pokemon.is_mythical,
+                func.count(Sighting.id).label("total_count"),
+                func.sum(case((Sighting.is_confirmed.is_(True), 1), else_=0)).label(
+                    "confirmed_count"
+                ),
+            )
+            .join(Pokemon, Sighting.pokemon_id == Pokemon.id)
+            .filter(Sighting.region == region)
+            .group_by(Sighting.pokemon_id)
+            .all()
+        )
+
+        return results
