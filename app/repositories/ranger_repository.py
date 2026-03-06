@@ -13,3 +13,8 @@ class RangerRepository(BaseRepository[Ranger]):
 
     def get_by_email(self, email: str) -> Ranger | None:
         return self.db.query(Ranger).filter(Ranger.email == email).first()
+
+    def get_by_ids(self, ids: list[str]) -> list[Ranger]:
+        if not ids:
+            return []
+        return self.db.query(Ranger).filter(Ranger.id.in_(ids)).all()

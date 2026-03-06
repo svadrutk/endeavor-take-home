@@ -29,3 +29,8 @@ class PokemonRepository(BaseRepository[Pokemon]):
             .filter(Pokemon.name.ilike(f"%{escaped_name}%", escape="\\"))
             .count()
         )
+
+    def get_by_ids(self, ids: list[int]) -> list[Pokemon]:
+        if not ids:
+            return []
+        return self.db.query(Pokemon).filter(Pokemon.id.in_(ids)).all()

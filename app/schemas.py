@@ -195,3 +195,27 @@ class CampaignSummary(BaseModel):
     unique_species: int
     contributing_rangers: list[dict[str, str | int]]
     observation_date_range: dict[str, datetime | None]
+
+
+class TopPokemon(BaseModel):
+    id: int
+    name: str
+    count: int
+
+
+class TopRanger(BaseModel):
+    id: str
+    name: str
+    count: int
+
+
+class RegionalSummary(BaseModel):
+    region: str
+    total_sightings: int
+    confirmed_sightings: int
+    unconfirmed_sightings: int
+    unique_species: int
+    top_pokemon: list[TopPokemon]
+    top_rangers: list[TopRanger]
+    weather_breakdown: dict[str, int]
+    time_of_day_breakdown: dict[str, int]
