@@ -11,7 +11,7 @@ Public test suite for the PokéTracker API.
 class TestTrainerRegistration:
     def test_create_trainer(self, client):
         response = client.post(
-            "/trainers",
+            "/v1/trainers",
             json={
                 "name": "Trainer Red",
                 "email": "red@pokemon-league.org",
@@ -24,19 +24,19 @@ class TestTrainerRegistration:
         assert "id" in data
 
     def test_get_trainer(self, client, sample_trainer):
-        response = client.get(f"/trainers/{sample_trainer['id']}")
+        response = client.get(f"/v1/trainers/{sample_trainer['id']}")
         assert response.status_code == 200
         assert response.json()["name"] == sample_trainer["name"]
 
     def test_get_trainer_not_found(self, client):
-        response = client.get("/trainers/nonexistent-uuid")
+        response = client.get("/v1/trainers/nonexistent-uuid")
         assert response.status_code == 404
 
 
 class TestRangerRegistration:
     def test_create_ranger(self, client):
         response = client.post(
-            "/rangers",
+            "/v1/rangers",
             json={
                 "name": "Ranger Ash",
                 "email": "ash@pokemon-institute.org",
@@ -50,12 +50,12 @@ class TestRangerRegistration:
         assert "id" in data
 
     def test_get_ranger(self, client, sample_ranger):
-        response = client.get(f"/rangers/{sample_ranger['id']}")
+        response = client.get(f"/v1/rangers/{sample_ranger['id']}")
         assert response.status_code == 200
         assert response.json()["name"] == sample_ranger["name"]
 
     def test_get_ranger_not_found(self, client):
-        response = client.get("/rangers/nonexistent-uuid")
+        response = client.get("/v1/rangers/nonexistent-uuid")
         assert response.status_code == 404
 
 
@@ -66,21 +66,21 @@ class TestRangerRegistration:
 
 class TestUserLookup:
     def test_lookup_trainer_by_name(self, client, sample_trainer):
-        response = client.get("/users/lookup", params={"name": sample_trainer["name"]})
+        response = client.get("/v1/users/lookup", params={"name": sample_trainer["name"]})
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == sample_trainer["id"]
         assert data["role"] == "trainer"
 
     def test_lookup_ranger_by_name(self, client, sample_ranger):
-        response = client.get("/users/lookup", params={"name": sample_ranger["name"]})
+        response = client.get("/v1/users/lookup", params={"name": sample_ranger["name"]})
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == sample_ranger["id"]
         assert data["role"] == "ranger"
 
     def test_lookup_not_found(self, client):
-        response = client.get("/users/lookup", params={"name": "Nobody"})
+        response = client.get("/v1/users/lookup", params={"name": "Nobody"})
         assert response.status_code == 404
 
 
@@ -91,7 +91,7 @@ class TestUserLookup:
 
 class TestPokedex:
     def test_list_pokemon(self, client, sample_pokemon):
-        response = client.get("/pokedex")
+        response = client.get("/v1/pokedex")
         assert response.status_code == 200
         data = response.json()
         assert "results" in data
@@ -99,18 +99,18 @@ class TestPokedex:
         assert data["total"] == len(sample_pokemon)
 
     def test_get_pokemon_by_id(self, client, sample_pokemon):
-        response = client.get("/pokedex/25")
+        response = client.get("/v1/pokedex/25")
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Pikachu"
         assert data["type1"] == "Electric"
 
     def test_get_pokemon_not_found(self, client, sample_pokemon):
-        response = client.get("/pokedex/999")
+        response = client.get("/v1/pokedex/999")
         assert response.status_code == 404
 
     def test_get_pokemon_by_region(self, client, sample_pokemon):
-        response = client.get("/pokedex/region/kanto")
+        response = client.get("/v1/pokedex/region/kanto")
         assert response.status_code == 200
         data = response.json()
         # All sample Gen 1 pokemon
@@ -119,7 +119,7 @@ class TestPokedex:
             assert p["generation"] == 1
 
     def test_search_pokemon(self, client, sample_pokemon):
-        response = client.get("/pokedex/search", params={"name": "char"})
+        response = client.get("/v1/pokedex/search", params={"name": "char"})
         assert response.status_code == 200
         data = response.json()
         assert "results" in data
@@ -136,7 +136,7 @@ class TestPokedex:
 class TestSightings:
     def test_create_sighting(self, client, sample_pokemon, sample_ranger):
         response = client.post(
-            "/sightings",
+            "/v1/sightings",
             json={
                 "pokemon_id": 1,
                 "region": "Kanto",
@@ -161,7 +161,7 @@ class TestSightings:
     def test_create_sighting_requires_ranger(self, client, sample_pokemon, sample_trainer):
         """Trainers should not be able to log sightings."""
         response = client.post(
-            "/sightings",
+            "/v1/sightings",
             json={
                 "pokemon_id": 1,
                 "region": "Kanto",
@@ -179,7 +179,7 @@ class TestSightings:
     def test_create_sighting_requires_auth(self, client, sample_pokemon):
         """Sightings require X-User-ID header."""
         response = client.post(
-            "/sightings",
+            "/v1/sightings",
             json={
                 "pokemon_id": 1,
                 "region": "Kanto",
@@ -195,7 +195,7 @@ class TestSightings:
 
     def test_create_sighting_invalid_weather(self, client, sample_pokemon, sample_ranger):
         response = client.post(
-            "/sightings",
+            "/v1/sightings",
             json={
                 "pokemon_id": 1,
                 "region": "Kanto",
@@ -211,31 +211,31 @@ class TestSightings:
         assert response.status_code == 422
 
     def test_get_sighting(self, client, sample_sighting):
-        response = client.get(f"/sightings/{sample_sighting['id']}")
+        response = client.get(f"/v1/sightings/{sample_sighting['id']}")
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == sample_sighting["id"]
 
     def test_get_sighting_not_found(self, client):
-        response = client.get("/sightings/nonexistent-id")
+        response = client.get("/v1/sightings/nonexistent-id")
         assert response.status_code == 404
 
     def test_delete_sighting(self, client, sample_sighting, sample_ranger):
         sighting_id = sample_sighting["id"]
         response = client.delete(
-            f"/sightings/{sighting_id}",
+            f"/v1/sightings/{sighting_id}",
             headers={"X-User-ID": sample_ranger["id"]},
         )
         assert response.status_code == 200
 
         # Verify it's gone
-        response = client.get(f"/sightings/{sighting_id}")
+        response = client.get(f"/v1/sightings/{sighting_id}")
         assert response.status_code == 404
 
     def test_delete_sighting_wrong_ranger(self, client, sample_sighting, second_ranger):
         """A ranger cannot delete another ranger's sighting."""
         response = client.delete(
-            f"/sightings/{sample_sighting['id']}",
+            f"/v1/sightings/{sample_sighting['id']}",
             headers={"X-User-ID": second_ranger["id"]},
         )
         assert response.status_code == 403
@@ -243,7 +243,7 @@ class TestSightings:
 
 class TestRangerSightings:
     def test_get_ranger_sightings(self, client, sample_sighting, sample_ranger):
-        response = client.get(f"/rangers/{sample_ranger['id']}/sightings")
+        response = client.get(f"/v1/rangers/{sample_ranger['id']}/sightings")
         assert response.status_code == 200
         data = response.json()
         assert "results" in data
@@ -252,7 +252,7 @@ class TestRangerSightings:
         assert data["results"][0]["ranger_id"] == sample_ranger["id"]
 
     def test_get_ranger_sightings_not_found(self, client):
-        response = client.get("/rangers/nonexistent-uuid/sightings")
+        response = client.get("/v1/rangers/nonexistent-uuid/sightings")
         assert response.status_code == 404
 
 

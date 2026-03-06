@@ -4,8 +4,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.deps import get_db
 from app.database import Base
-from app.main import app, get_db
+from app.main import app
 
 
 @pytest.fixture(scope="function")
@@ -165,7 +166,7 @@ def sample_pokemon(db_session):
 def sample_ranger(client):
     """Create a sample ranger and return the response data."""
     response = client.post(
-        "/rangers",
+        "/v1/rangers",
         json={
             "name": "Ranger Ash",
             "email": "ash@pokemon-institute.org",
@@ -179,7 +180,7 @@ def sample_ranger(client):
 def second_ranger(client):
     """Create a second ranger for peer confirmation tests."""
     response = client.post(
-        "/rangers",
+        "/v1/rangers",
         json={
             "name": "Ranger Gary",
             "email": "gary@pokemon-institute.org",
@@ -193,7 +194,7 @@ def second_ranger(client):
 def sample_trainer(client):
     """Create a sample trainer and return the response data."""
     response = client.post(
-        "/trainers",
+        "/v1/trainers",
         json={
             "name": "Trainer Red",
             "email": "red@pokemon-league.org",
@@ -206,7 +207,7 @@ def sample_trainer(client):
 def sample_sighting(client, sample_pokemon, sample_ranger):
     """Create a sample sighting and return the response data."""
     response = client.post(
-        "/sightings",
+        "/v1/sightings",
         json={
             "pokemon_id": 25,
             "region": "Kanto",
