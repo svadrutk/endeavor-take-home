@@ -64,6 +64,7 @@ class PokemonResponse(BaseModel):
     is_baby: bool
     capture_rate: int
     evolution_chain_id: int | None
+    is_caught: bool | None = None
 
 
 class PokemonSearchResult(BaseModel):
@@ -282,3 +283,27 @@ class PaginatedLeaderboardResponse(BaseModel):
     total: int = Field(..., description="Total number of rangers matching filters")
     limit: int = Field(..., description="Maximum number of results per page")
     offset: int = Field(..., description="Number of results skipped")
+
+
+class TrainerCatchResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pokemon_id: int
+    pokemon_name: str
+    caught_at: datetime
+
+
+class CatchLogResponse(BaseModel):
+    trainer_id: str
+    trainer_name: str
+    catches: list[TrainerCatchResponse]
+    total: int
+
+
+class CatchSummaryResponse(BaseModel):
+    trainer_id: str
+    trainer_name: str
+    total_caught: int
+    completion_percentage: float
+    caught_by_type: dict[str, int]
+    caught_by_generation: dict[int, int]

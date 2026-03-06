@@ -9,6 +9,7 @@ from app.repositories.campaign_repository import CampaignRepository
 from app.repositories.pokemon_repository import PokemonRepository
 from app.repositories.ranger_repository import RangerRepository
 from app.repositories.sighting_repository import SightingRepository
+from app.repositories.trainer_catch_repository import TrainerCatchRepository
 from app.repositories.trainer_repository import TrainerRepository
 from app.services.campaign_service import CampaignService
 from app.services.leaderboard_service import LeaderboardService
@@ -34,7 +35,9 @@ def get_pokemon_service(db: Session = Depends(get_db)) -> PokemonService:
 
 def get_trainer_service(db: Session = Depends(get_db)) -> TrainerService:
     trainer_repo = TrainerRepository(db)
-    return TrainerService(trainer_repo)
+    trainer_catch_repo = TrainerCatchRepository(db)
+    pokemon_repo = PokemonRepository(db)
+    return TrainerService(trainer_repo, trainer_catch_repo, pokemon_repo)
 
 
 def get_ranger_service(db: Session = Depends(get_db)) -> RangerService:
